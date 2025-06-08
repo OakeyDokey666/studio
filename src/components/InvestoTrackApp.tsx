@@ -18,15 +18,14 @@ interface InvestoTrackAppProps {
   initialData: ParsedCsvData;
 }
 
-// ISIN to Ticker mapping, prioritizing Euronext as per user's note
+// ISIN to Ticker mapping, prioritizing Euronext
 const isinToTickerMap: Record<string, string> = {
   "FR0013412012": "PAASI.PA", // Amundi PEA MSCI Emerging Asia ESG Leaders (Euronext Paris)
   "LU1812092168": "SEL.AS",    // Amundi Stoxx Europe Select Dividend 30 (Euronext Amsterdam)
-  "IE00B4K6B022": "E50E.PA",  // HSBC EURO STOXX 50 UCITS ETF EUR (Euronext Paris, was .DE)
-  "IE00BZ4BMM98": "EUHD.PA",  // Invesco EURO STOXX High Dividend Low Volatility (Euronext Paris, was .DE)
-  "IE0002XZSHO1": "WPEA.PA",  // iShares MSCI World Swap PEA UCITS ETF EUR (Euronext Paris, was .MI)
+  "IE00B4K6B022": "E50E.PA",  // HSBC EURO STOXX 50 UCITS ETF EUR (Euronext Paris)
+  "IE00BZ4BMM98": "EUHD.PA",  // Invesco EURO STOXX High Dividend Low Volatility (Euronext Paris)
+  "IE0002XZSHO1": "WPEA.PA",  // iShares MSCI World Swap PEA UCITS ETF EUR (Euronext Paris)
   "IE00B5M1WJ87": "EUDV.AS"   // SPDR S&P Euro Dividend Aristocrats (Euronext Amsterdam)
-  // FR0011871110 (PUST) is not in the initial portfolioContent.ts, so not mapped here.
 };
 
 
@@ -39,16 +38,14 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const { toast } = useToast();
 
   const processHoldings = useCallback((holdingsToProcess: PortfolioHolding[]) => {
-    const enrichedHoldings = holdingsToProcess.map(h => ({
-      ...h,
-      ticker: h.ticker || isinToTickerMap[h.isin] || undefined
-    }));
-    const metricsApplied = calculatePortfolioMetrics(enrichedHoldings);
+    // Assuming holdingsToProcess already have their 'ticker' field correctly populated
+    // either from initial load or from price refresh logic.
+    const metricsApplied = calculatePortfolioMetrics(holdingsToProcess);
     setPortfolioHoldings(metricsApplied);
-  }, []);
+  }, [setPortfolioHoldings]); // calculatePortfolioMetrics is a stable import
 
   useEffect(() => {
-    // Enrich with tickers before processing
+    // Enrich with tickers before processing initial data
     const holdingsWithInitialTickers = initialData.holdings.map(h => ({
         ...h,
         ticker: h.ticker || isinToTickerMap[h.isin] || undefined
@@ -59,10 +56,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const handleRefreshPrices = async () => {
     setIsRefreshingPrices(true);
     try {
-      const assetsToFetch: FetchStockPricesInput = portfolioHoldings.map(h => ({ 
-        isin: h.isin, 
+      const assetsToFetch: FetchStockPricesInput = portfolioHoldings.map(h => ({
+        isin: h.isin,
         id: h.id,
-        ticker: h.ticker || isinToTickerMap[h.isin] // Use holding's ticker if present, else from map
+        ticker: h.ticker || isinToTickerMap[h.isin] // Use holding's current ticker or fallback to map
       }));
 
       if (assetsToFetch.length === 0) {
@@ -72,7 +69,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       }
 
       const fetchedPrices: StockPriceData[] = await fetchStockPrices(assetsToFetch);
-      
+
       let pricesUpdatedCount = 0;
       let nonEurCurrencyWarnings: string[] = [];
       let notFoundWarnings: string[] = [];
@@ -83,18 +80,16 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
           if (priceData.currentPrice !== undefined && priceData.currency) {
             if (priceData.currency.toUpperCase() !== 'EUR') {
               nonEurCurrencyWarnings.push(`Holding ${holding.name} (${priceData.symbol || holding.isin}) price is in ${priceData.currency}, not EUR. Price not updated.`);
-              return holding; 
+              return holding;
             }
             pricesUpdatedCount++;
             return {
               ...holding,
               currentPrice: priceData.currentPrice,
               currentAmount: holding.quantity * priceData.currentPrice,
-              // Update ticker if a more accurate one was found by Yahoo and used
-              ticker: priceData.symbol || holding.ticker, 
+              ticker: priceData.symbol || holding.ticker, // Persist Yahoo's symbol if provided, else keep existing
             };
           } else {
-            // Price or currency not found for this holding
             notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${priceData.symbol || holding.ticker || 'N/A'}).`);
           }
         }
@@ -103,7 +98,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
       processHoldings(updatedHoldings);
       setPricesLastUpdated(new Date());
-      
+
       if (pricesUpdatedCount > 0) {
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
       } else {
@@ -130,7 +125,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               {notFoundWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
             </ul>
           ),
-          variant: "default", // Changed to default as it's a common occurrence
+          variant: "default",
           duration: 10000,
         });
       }
@@ -146,7 +141,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <AppHeader 
+      <AppHeader
         onRefreshPrices={handleRefreshPrices}
         isRefreshingPrices={isRefreshingPrices}
         pricesLastUpdated={pricesLastUpdated}
@@ -165,11 +160,11 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
             </AlertDescription>
           </Alert>
         )}
-        
+
         <SummarySection holdings={portfolioHoldings} newInvestmentAmount={newInvestmentAmount} />
-        
+
         <HoldingsTable holdings={portfolioHoldings} />
-        
+
         <RebalanceAdvisor holdings={portfolioHoldings} initialNewInvestmentAmount={newInvestmentAmount} />
       </main>
       <footer className="py-6 text-center text-sm text-muted-foreground border-t border-border">
