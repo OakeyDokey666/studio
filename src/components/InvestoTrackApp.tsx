@@ -21,11 +21,11 @@ interface InvestoTrackAppProps {
 // ISIN to Ticker mapping, prioritizing Euronext
 const isinToTickerMap: Record<string, string> = {
   "FR0013412012": "PAASI.PA", // Amundi PEA MSCI Emerging Asia ESG Leaders (Euronext Paris)
-  "LU1812092168": "SEL.AS",    // Amundi Stoxx Europe Select Dividend 30 (Euronext Amsterdam)
+  "LU1812092168": "SELS.PA",  // Amundi Stoxx Europe Select Dividend 30 (Euronext Paris) - Corrected
   "IE00B4K6B022": "50E.PA",   // HSBC EURO STOXX 50 UCITS ETF EUR (Euronext Paris) - Corrected
   "IE00BZ4BMM98": "EUHD.PA",  // Invesco EURO STOXX High Dividend Low Volatility (Euronext Paris)
   "IE0002XZSHO1": "WPEA.PA",  // iShares MSCI World Swap PEA UCITS ETF EUR (Euronext Paris)
-  "IE00B5M1WJ87": "EUDV.AS"   // SPDR S&P Euro Dividend Aristocrats (Euronext Amsterdam)
+  "IE00B5M1WJ87": "EUDV.PA"   // SPDR S&P Euro Dividend Aristocrats (Euronext Paris) - Corrected
 };
 
 
