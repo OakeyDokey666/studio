@@ -27,7 +27,8 @@ export function DebugLogViewerDialog({ logs, isOpen, onOpenChange }: DebugLogVie
   if (hasLogs) {
     allLogsString = Object.entries(logs)
       .map(([id, { name, logs: logArray }]) => {
-        return `--- ${name} (${id}) ---\n${logArray.join('\n')}\n\n`;
+        const holdingIdentifier = name && id ? `${name} (ID: ${id})` : name || id || 'Unknown Holding';
+        return `--- ${holdingIdentifier} ---\n${logArray.join('\n')}\n\n`;
       })
       .join('');
   } else {
@@ -43,7 +44,7 @@ export function DebugLogViewerDialog({ logs, isOpen, onOpenChange }: DebugLogVie
             Detailed logs from the last price refresh attempt. You can select and copy text from here.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-grow p-1 pr-4 bg-muted/50 rounded-md">
+        <ScrollArea className="flex-grow min-h-0 p-1 pr-4 bg-muted/50 rounded-md">
           <pre className="text-xs whitespace-pre-wrap p-4">
             {allLogsString}
           </pre>
