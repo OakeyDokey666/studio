@@ -28,6 +28,8 @@ const StockPriceDataSchema = z.object({
   currency: z.string().optional().describe('The currency of the price.'),
   symbol: z.string().optional().describe('The ticker symbol found on Yahoo Finance.'),
   exchange: z.string().optional().describe('The exchange the price was sourced from (e.g., PAR, LSE).'),
+  regularMarketChange: z.number().optional().describe('The change in price from the previous close.'),
+  regularMarketChangePercent: z.number().optional().describe('The percentage change in price from the previous close.'),
 });
 export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
 
@@ -52,6 +54,8 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
             currency: quote.currency,
             symbol: quote.symbol || preferredTicker,
             exchange: quote.exchange,
+            regularMarketChange: quote.regularMarketChange,
+            regularMarketChangePercent: quote.regularMarketChangePercent,
           };
         } else {
           console.warn(`Preferred ticker ${preferredTicker} for ISIN ${isin} (ID: ${id}) found price in ${quote.currency}, not EUR. Falling back to ISIN search.`);
@@ -73,6 +77,8 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         currency: quote.currency,
         symbol: quote.symbol,
         exchange: quote.exchange,
+        regularMarketChange: quote.regularMarketChange,
+        regularMarketChangePercent: quote.regularMarketChangePercent,
       };
     }
   } catch (error) {
@@ -130,6 +136,8 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
             currency: quote.currency,
             symbol: quote.symbol,
             exchange: quote.exchange,
+            regularMarketChange: quote.regularMarketChange,
+            regularMarketChangePercent: quote.regularMarketChangePercent,
           };
         }
       }
@@ -139,7 +147,14 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   }
   
   console.warn(`Could not find EUR price for ISIN ${isin} (ID: ${id}, Ticker: ${preferredTicker}) after all attempts. Best symbol found: ${quote?.symbol || 'N/A'}`);
-  return { id, isin, symbol: preferredTicker || quote?.symbol, exchange: quote?.exchange }; // Return without price if not found or not EUR
+  return { 
+    id, 
+    isin, 
+    symbol: preferredTicker || quote?.symbol, 
+    exchange: quote?.exchange,
+    regularMarketChange: quote?.regularMarketChange,
+    regularMarketChangePercent: quote?.regularMarketChangePercent,
+  }; // Return without price if not found or not EUR
 }
 
 
@@ -160,4 +175,3 @@ const fetchStockPricesFlow = ai.defineFlow(
     return results.filter(r => r !== null) as StockPriceData[];
   }
 );
-

@@ -20,6 +20,8 @@ export interface PortfolioHolding {
   priceSourceExchange?: string; // Exchange from which the current price was sourced
   newInvestmentAllocation?: number; // Calculated: newInvestmentAmount * targetAllocationPercentage
   quantityToBuyFromNewInvestment?: number; // Calculated: newInvestmentAllocation / currentPrice, then rounded
+  regularMarketChange?: number; // Absolute change from previous close
+  regularMarketChangePercent?: number; // Percentage change from previous close
 }
 
 export interface ParsedCsvData {
