@@ -27,6 +27,9 @@ export interface PortfolioHolding {
   // Fields for new investment calculation (dependent on currentPrice)
   newInvestmentAllocation?: number;
   quantityToBuyFromNewInvestment?: number;
+
+  // Temporary for debugging price fetching issues
+  debugLogs?: string[]; 
 }
 
 export interface ParsedCsvData {

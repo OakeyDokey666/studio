@@ -31,10 +31,10 @@ type PriceMapEntry = {
   price?: number;
   exchange?: string;
   symbol?: string;
-  // Fields for Name Popover
   ter?: number;
   fundSize?: number;
   categoryName?: string;
+  debugLogs?: string[];
 };
 
 
@@ -57,10 +57,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       currentPrice: undefined,
       currentAmount: undefined,
       priceSourceExchange: undefined,
-      // Initialize name popover fields
       ter: undefined,
       fundSize: undefined,
       categoryName: undefined,
+      debugLogs: undefined,
     }));
     setBaseHoldings(initialSetup);
   }, [initialData.holdings]);
@@ -80,10 +80,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         currentPrice: livePrice,
         currentAmount: livePrice !== undefined ? h.quantity * livePrice : undefined,
         priceSourceExchange: priceInfo?.exchange ?? h.priceSourceExchange,
-        // Map name popover fields
         ter: priceInfo?.ter,
         fundSize: priceInfo?.fundSize,
         categoryName: priceInfo?.categoryName,
+        debugLogs: priceInfo?.debugLogs, // Pass debug logs through
       };
     });
 
@@ -99,7 +99,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       return;
     }
     setIsRefreshingPrices(true);
-    console.log("[InvestoTrackApp RB] Starting price refresh for baseHoldings:", baseHoldings);
+    console.log("[InvestoTrackApp RB] Starting price refresh for baseHoldings:", baseHoldings.map(h => h.isin));
     try {
       const assetsToFetch: FetchStockPricesInput = baseHoldings.map(h => ({
         isin: h.isin,
@@ -107,7 +107,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         ticker: h.ticker
       }));
 
-      console.log("[InvestoTrackApp RB] Assets to fetch:", assetsToFetch);
+      console.log("[InvestoTrackApp RB] Assets to fetch:", assetsToFetch.map(a => a.isin));
 
       if (assetsToFetch.length === 0) {
         console.log("[InvestoTrackApp RB] No base holdings to refresh.");
@@ -119,7 +119,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       }
 
       const fetchedPricesData: StockPriceData[] = await fetchStockPrices(assetsToFetch);
-      console.log("[InvestoTrackApp RB] Fetched prices raw data from flow:", fetchedPricesData);
+      console.log("[InvestoTrackApp RB] Fetched prices raw data from flow (summary):", fetchedPricesData.map(p => ({isin: p.isin, price: p.currentPrice, logs: p.debugLogs?.length || 0})));
 
       let pricesUpdatedCount = 0;
       let notFoundWarnings: string[] = [];
@@ -127,14 +127,28 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
       fetchedPricesData.forEach(priceData => {
         const holdingFromBase = baseHoldings.find(h => h.id === priceData.id);
+        if (priceData.debugLogs && priceData.debugLogs.length > 0) {
+            toast({
+                title: `Debug Logs: ${priceData.isin}`,
+                description: (
+                    <pre className="whitespace-pre-wrap text-xs max-h-60 overflow-y-auto">
+                        {priceData.debugLogs.join('\n')}
+                    </pre>
+                ),
+                duration: 20000, // Keep debug toasts longer
+                variant: "default",
+                className: "w-full max-w-md md:max-w-lg lg:max-w-xl"
+            });
+        }
+
         if (holdingFromBase) {
           let entryToSet: PriceMapEntry = {
             exchange: priceData.exchange,
             symbol: priceData.symbol,
-            // Name popover fields
             ter: priceData.ter,
             fundSize: priceData.fundSize,
             categoryName: priceData.categoryName,
+            debugLogs: priceData.debugLogs,
           };
 
           if (priceData.currentPrice !== undefined && priceData.currency?.toUpperCase() === 'EUR') {
@@ -142,10 +156,12 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               entryToSet.price = priceData.currentPrice;
               console.log(`[InvestoTrackApp RB] Price updated for ${holdingFromBase.name}: ${priceData.currentPrice} ${priceData.currency}`);
           } else {
-            notFoundWarnings.push(`Could not find EUR price for ${holdingFromBase.name} (ISIN: ${holdingFromBase.isin}, Symbol: ${priceData.symbol || holdingFromBase.ticker || 'N/A'}, Reported Exchange: ${priceData.exchange || 'N/A'}, Reported Currency: ${priceData.currency || 'N/A'}).`);
+            const warningMsg = `Could not find EUR price for ${holdingFromBase.name} (ISIN: ${holdingFromBase.isin}, Symbol: ${priceData.symbol || holdingFromBase.ticker || 'N/A'}, Reported Exchange: ${priceData.exchange || 'N/A'}, Reported Currency: ${priceData.currency || 'N/A'}).`;
+            notFoundWarnings.push(warningMsg);
+            // Log to server console as well as debugLogs should cover this for toast
+            console.warn(`[InvestoTrackApp RB] ${warningMsg}`);
             const existingEntry = currentPricesMap.get(holdingFromBase.id);
             entryToSet.price = existingEntry?.price; 
-            console.log(`[InvestoTrackApp RB] No valid EUR price found by flow for ${holdingFromBase.name}. Kept old price: ${existingEntry?.price}`);
           }
           newPricesMapUpdates.set(holdingFromBase.id, entryToSet);
         }
@@ -153,9 +169,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
       setCurrentPricesMap(prevMap => {
         const combinedMap = new Map(prevMap);
-        baseHoldings.forEach(bh => {
+        baseHoldings.forEach(bh => { // Ensure all base holdings have an entry
             if (!combinedMap.has(bh.id)) {
-                combinedMap.set(bh.id, { /* default empty entry for name popover */ });
+                 combinedMap.set(bh.id, { debugLogs: [`No price data received for ${bh.isin}`] });
             }
         });
         newPricesMapUpdates.forEach((value, key) => {
@@ -172,21 +188,27 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       if (pricesUpdatedCount > 0) {
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
       } else if (initialRefreshDoneRef.current || assetsToFetch.length > 0) {
-        if (notFoundWarnings.length === 0) {
+        if (notFoundWarnings.length === 0 && fetchedPricesData.every(pd => pd.currentPrice !== undefined)) {
+          // This case means all prices were found and were already current or no change.
           toast({ title: "Prices Checked", description: "No new EUR prices were found or they were already current." });
+        } else if (notFoundWarnings.length === 0 && fetchedPricesData.length === 0 && assetsToFetch.length > 0) {
+          // No data returned at all
+           toast({ title: "Price Fetch Issue", description: "No data returned from price service for any asset.", variant: "destructive" });
         }
+        // The "Price Not Found During Refresh" toast will be shown if notFoundWarnings has items.
       }
+
 
       if (notFoundWarnings.length > 0) {
          toast({
           title: "Price Not Found During Refresh",
           description: (
-            <ul className="list-disc pl-5">
+            <ul className="list-disc pl-5 text-xs">
               {notFoundWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
             </ul>
           ),
-          variant: "default",
-          duration: 10000,
+          variant: "destructive", // Changed to destructive for more visibility
+          duration: 15000,
         });
       }
 
