@@ -2,6 +2,7 @@
 'use server';
 /**
  * @fileOverview Fetches latest stock prices and related financial data using Yahoo Finance.
+ * This version is simplified to address "Validation called with invalid options" errors.
  *
  * - fetchStockPrices - A function that takes ISINs (and optional tickers) and returns current prices and other details.
  * - FetchStockPricesInput - The input type for the fetchStockPrices function.
@@ -11,7 +12,8 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import yahooFinance from 'yahoo-finance2';
-import type { Quote, QuoteFields,SearchQuote } from 'yahoo-finance2/dist/esm/src/modules/quote.js';
+// Attempting to use the .js extension as it's often required for ESM modules by Node/TS
+import type { Quote, QuoteFields, SearchQuote } from 'yahoo-finance2/dist/esm/src/modules/quote.js';
 
 
 const FetchStockPricesInputSchema = z.array(
@@ -30,7 +32,7 @@ const StockPriceDataSchema = z.object({
   currency: z.string().optional().describe('The currency of the price found.'),
   symbol: z.string().optional().describe('The ticker symbol found on Yahoo Finance.'),
   exchange: z.string().optional().describe('The exchange the price was sourced from.'),
-  // For Name Popover (ETF specific)
+  // For Name Popover (ETF specific) - Temporarily will be N/A due to simplified fieldsToFetch
   ter: z.number().optional().describe('Total Expense Ratio for ETFs.'),
   fundSize: z.number().optional().describe('Fund size (AUM) for ETFs.'),
   categoryName: z.string().optional().describe('Fund category for ETFs.'),
@@ -41,11 +43,13 @@ export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
 const FetchStockPricesOutputSchema = z.array(StockPriceDataSchema);
 export type FetchStockPricesOutput = z.infer<typeof FetchStockPricesOutputSchema>;
 
-// Fields for basic price, name popover
+// Simplified fields to fetch to avoid "Validation called with invalid options"
 const fieldsToFetch: QuoteFields[] = [
-  'regularMarketPrice', 'currency', 'symbol', 'exchange',
-  'fundProfile', // For TER (annualReportExpenseRatio.raw), AUM (totalAssets.raw), categoryName
-  'summaryDetail', // Fallback for TER (expenseRatio.raw), AUM (totalAssets.raw)
+  'regularMarketPrice',
+  'currency',
+  'symbol',
+  'exchange',
+  // Temporarily removed 'fundProfile', 'summaryDetail' to debug validation error
 ];
 
 function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string, debugLogs: string[]): Partial<StockPriceData> {
@@ -62,11 +66,12 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
     currency: quote.currency,
     symbol: quote.symbol,
     exchange: quote.exchange,
-    ter: quote.fundProfile?.annualReportExpenseRatio?.raw ?? quote.summaryDetail?.expenseRatio?.raw,
-    fundSize: quote.fundProfile?.totalAssets?.raw ?? quote.summaryDetail?.totalAssets?.raw,
-    categoryName: quote.fundProfile?.categoryName,
+    // TER, fundSize, categoryName will be undefined as fundProfile/summaryDetail are not fetched
+    ter: undefined, // quote.fundProfile?.annualReportExpenseRatio?.raw ?? quote.summaryDetail?.expenseRatio?.raw,
+    fundSize: undefined, // quote.fundProfile?.totalAssets?.raw ?? quote.summaryDetail?.totalAssets?.raw,
+    categoryName: undefined, // quote.fundProfile?.categoryName,
   };
-  debugLogs.push(`extractDataFromQuote: Extracted Price: ${data.currentPrice}, Currency: ${data.currency}, TER: ${data.ter}, FundSize: ${data.fundSize}, Category: ${data.categoryName}`);
+  debugLogs.push(`extractDataFromQuote: Extracted Price: ${data.currentPrice}, Currency: ${data.currency}, Symbol: ${data.symbol}, Exchange: ${data.exchange}. Other details (TER, FundSize, Category) temporarily unavailable.`);
   return data;
 }
 
@@ -79,7 +84,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   // Attempt 0: Preferred Ticker
   if (preferredTicker) {
-    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker}`);
+    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} with fields: ${fieldsToFetch.join(', ')}`);
     try {
       const quote = await yahooFinance.quote(preferredTicker, { fields: fieldsToFetch });
       debugLogs.push(`Attempt 0: ${preferredTicker} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
@@ -102,7 +107,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   // Attempt 1: ISIN as Symbol (if EUR price not found yet)
   if (!eurPriceFound) {
-    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin}`);
+    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} with fields: ${fieldsToFetch.join(', ')}`);
     try {
       const quote = await yahooFinance.quote(isin, { fields: fieldsToFetch });
       debugLogs.push(`Attempt 1: ${isin} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
@@ -125,7 +130,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   if (!eurPriceFound) {
     debugLogs.push(`Attempt 2: Searching by ISIN ${isin}`);
     try {
-      const searchResults = await yahooFinance.search(isin);
+      const searchResults = await yahooFinance.search(isin); // No options object for search itself
       const searchQuotes = (searchResults.quotes || []) as SearchQuote[];
       debugLogs.push(`Attempt 2: Search returned ${searchQuotes.length} quotes.`);
 
@@ -133,15 +138,13 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         const foundSearchQuote = searchQuotes.find(q => {
           const symbol = q.symbol;
           const exchangeDisplay = q.exchDisp?.toUpperCase();
-          // A search result for an ISIN might not itself have an ISIN field directly,
-          // so we primarily rely on the search term being the ISIN and matching symbols.
           return symbol &&
                  (symbol.endsWith('.PA') || symbol.endsWith('.DE') || symbol.endsWith('.MI') || symbol.endsWith('.AS') || symbol.endsWith('.MC') ||
                   exchangeDisplay?.includes('EURONEXT') || exchangeDisplay?.includes('XETRA') || exchangeDisplay?.includes('PARIS') || (q as any).currency?.toUpperCase() === 'EUR');
         });
 
         if (foundSearchQuote?.symbol) {
-          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote.`);
+          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote with fields: ${fieldsToFetch.join(', ')}.`);
           const quoteFromSearchSymbol = await yahooFinance.quote(foundSearchQuote.symbol, { fields: fieldsToFetch });
           debugLogs.push(`Attempt 2: Full quote for ${foundSearchQuote.symbol} received - Price: ${quoteFromSearchSymbol?.regularMarketPrice}, Currency: ${quoteFromSearchSymbol?.currency}, Symbol: ${quoteFromSearchSymbol?.symbol}, Exchange: ${quoteFromSearchSymbol?.exchange}`);
           if (quoteFromSearchSymbol?.regularMarketPrice !== undefined && quoteFromSearchSymbol.currency?.toUpperCase() === 'EUR') {
@@ -162,8 +165,8 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      debugLogs.push(`Attempt 2: Error during search for ISIN ${isin}: ${errorMsg}`);
-      console.error(`[getPriceForIsin RB] Attempt 2: Error during search for ISIN ${isin}: ${errorMsg}`);
+      debugLogs.push(`Attempt 2: Error during search/quote for ISIN ${isin}: ${errorMsg}`);
+      console.error(`[getPriceForIsin RB] Attempt 2: Error during search/quote for ISIN ${isin}: ${errorMsg}`);
     }
   }
   
@@ -175,7 +178,8 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         debugLogs.push(`Final quote for ${isin} (ID: ${id}) was not in EUR (Currency: ${finalQuoteForExtraction.currency}). Clearing price.`);
         console.warn(`[getPriceForIsin RB] Final quote for ${isin} (ID: ${id}) was not in EUR (Currency: ${finalQuoteForExtraction.currency}). Clearing price.`);
         resultData.currentPrice = undefined;
-        resultData.currency = finalQuoteForExtraction.currency; 
+        // Keep the non-EUR currency if that's all we found, for informational purposes
+        resultData.currency = finalQuoteForExtraction.currency || resultData.currency; 
     } else {
         debugLogs.push(`EUR price successfully extracted for ${isin} (ID: ${id}): ${resultData.currentPrice}`);
         console.log(`[getPriceForIsin RB] EUR price successfully extracted for ${isin} (ID: ${id}): ${resultData.currentPrice}`);
