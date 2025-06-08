@@ -27,7 +27,9 @@ export function DebugLogViewerDialog({ logs, isOpen, onOpenChange }: DebugLogVie
   if (hasLogs) {
     allLogsString = Object.entries(logs)
       .map(([id, { name, logs: logArray }]) => {
-        const holdingIdentifier = name && id ? `${name} (ID: ${id})` : name || id || 'Unknown Holding';
+        const holdingName = name || 'Unknown Holding';
+        // Use id (which is ISIN) for a more stable identifier if name is missing
+        const holdingIdentifier = `${holdingName} (ID: ${id})`; 
         return `--- ${holdingIdentifier} ---\n${logArray.join('\n')}\n\n`;
       })
       .join('');
@@ -44,11 +46,14 @@ export function DebugLogViewerDialog({ logs, isOpen, onOpenChange }: DebugLogVie
             Detailed logs from the last price refresh attempt. You can select and copy text from here.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-grow min-h-0 p-1 pr-4 bg-muted/50 rounded-md">
-          <pre className="text-xs whitespace-pre-wrap p-4">
-            {allLogsString}
-          </pre>
-        </ScrollArea>
+        {/* Wrapper div to control flex-grow and provide context for ScrollArea height */}
+        <div className="flex-grow min-h-0 overflow-hidden py-2"> 
+          <ScrollArea className="h-full w-full rounded-md border p-2 bg-muted/30">
+            <pre className="text-xs whitespace-pre-wrap p-2">
+              {allLogsString}
+            </pre>
+          </ScrollArea>
+        </div>
         <DialogFooter className="mt-4 pt-4 border-t">
           <DialogClose asChild>
             <Button type="button" variant="outline">
