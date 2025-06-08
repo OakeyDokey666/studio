@@ -13,7 +13,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import yahooFinance from 'yahoo-finance2';
 // Using .js extension as it's often required for ESM modules by Node/TS, and ensuring correct type import
-import type { Quote, QuoteFields, SearchQuote } from 'yahoo-finance2/dist/esm/src/modules/quote.js';
+import type { Quote, SearchQuote } from 'yahoo-finance2/dist/esm/src/modules/quote.js';
 
 
 const FetchStockPricesInputSchema = z.array(
@@ -43,15 +43,7 @@ export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
 const FetchStockPricesOutputSchema = z.array(StockPriceDataSchema);
 export type FetchStockPricesOutput = z.infer<typeof FetchStockPricesOutputSchema>;
 
-// Simplified fields to fetch, re-introducing fundProfile and summaryDetail for popover
-const fieldsToFetch: QuoteFields[] = [
-  'regularMarketPrice',
-  'currency',
-  'symbol',
-  'exchange',
-  'fundProfile',      // For TER, Fund Size (AUM), Category Name
-  'summaryDetail',    // Fallback for TER, Fund Size
-];
+// Removed fieldsToFetch constant, will rely on yahoo-finance2 defaults when calling quote()
 
 function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string, debugLogs: string[]): Partial<StockPriceData> {
   if (!quote) {
@@ -84,16 +76,16 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   // Attempt 0: Preferred Ticker
   if (preferredTicker) {
-    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} with fields: ${fieldsToFetch.join(', ')}`);
+    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} (using library defaults for fields)`);
     try {
-      const quote = await yahooFinance.quote(preferredTicker, { fields: fieldsToFetch });
+      const quote = await yahooFinance.quote(preferredTicker); // Removed fields option
       debugLogs.push(`Attempt 0: ${preferredTicker} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
       if (quote?.regularMarketPrice !== undefined && quote.currency?.toUpperCase() === 'EUR') {
         debugLogs.push(`Attempt 0: EUR price found for ${preferredTicker}.`);
         finalQuoteForExtraction = quote;
         eurPriceFound = true;
       } else {
-        finalQuoteForExtraction = quote; // Keep for non-EUR details if no EUR price found later
+        finalQuoteForExtraction = quote; 
         debugLogs.push(`Attempt 0: ${preferredTicker} - Not EUR or incomplete. Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}`);
       }
     } catch (error) {
@@ -107,9 +99,9 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   // Attempt 1: ISIN as Symbol (if EUR price not found yet)
   if (!eurPriceFound) {
-    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} with fields: ${fieldsToFetch.join(', ')}`);
+    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} (using library defaults for fields)`);
     try {
-      const quote = await yahooFinance.quote(isin, { fields: fieldsToFetch });
+      const quote = await yahooFinance.quote(isin); // Removed fields option
       debugLogs.push(`Attempt 1: ${isin} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
       if (quote?.regularMarketPrice !== undefined && quote.currency?.toUpperCase() === 'EUR') {
         debugLogs.push(`Attempt 1: EUR price found for ISIN ${isin}.`);
@@ -130,31 +122,30 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   if (!eurPriceFound) {
     debugLogs.push(`Attempt 2: Searching by ISIN ${isin}`);
     try {
-      const searchResults = await yahooFinance.search(isin); // No options object for search itself
-      const searchQuotes = (searchResults.quotes || []) as SearchQuote[]; // Cast to SearchQuote array
+      const searchResults = await yahooFinance.search(isin); 
+      const searchQuotes = (searchResults.quotes || []) as SearchQuote[]; 
       debugLogs.push(`Attempt 2: Search returned ${searchQuotes.length} quotes.`);
 
       if (searchQuotes.length > 0) {
         const foundSearchQuote = searchQuotes.find(q => {
-          const symbol = q.symbol; // SearchQuote has symbol
+          const symbol = q.symbol; 
           const exchangeDisplay = q.exchDisp?.toUpperCase();
-          // Check currency on SearchQuote if available, or rely on exchange/symbol hints
-          const currencyHint = (q as any).currency?.toUpperCase(); // Some SearchQuote might have currency
+          const currencyHint = (q as any).currency?.toUpperCase(); 
           return symbol &&
                  (symbol.endsWith('.PA') || symbol.endsWith('.DE') || symbol.endsWith('.MI') || symbol.endsWith('.AS') || symbol.endsWith('.MC') ||
                   exchangeDisplay?.includes('EURONEXT') || exchangeDisplay?.includes('XETRA') || exchangeDisplay?.includes('PARIS') || currencyHint === 'EUR');
         });
 
         if (foundSearchQuote?.symbol) {
-          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote with fields: ${fieldsToFetch.join(', ')}.`);
-          const quoteFromSearchSymbol = await yahooFinance.quote(foundSearchQuote.symbol, { fields: fieldsToFetch });
+          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote (using library defaults for fields).`);
+          const quoteFromSearchSymbol = await yahooFinance.quote(foundSearchQuote.symbol); // Removed fields option
           debugLogs.push(`Attempt 2: Full quote for ${foundSearchQuote.symbol} received - Price: ${quoteFromSearchSymbol?.regularMarketPrice}, Currency: ${quoteFromSearchSymbol?.currency}, Symbol: ${quoteFromSearchSymbol?.symbol}, Exchange: ${quoteFromSearchSymbol?.exchange}`);
           if (quoteFromSearchSymbol?.regularMarketPrice !== undefined && quoteFromSearchSymbol.currency?.toUpperCase() === 'EUR') {
             debugLogs.push(`Attempt 2: EUR price confirmed for searched symbol ${foundSearchQuote.symbol}.`);
             finalQuoteForExtraction = quoteFromSearchSymbol;
             eurPriceFound = true;
           } else {
-             if (!finalQuoteForExtraction) { // If no quote was selected before (e.g. preferred ticker was not EUR)
+             if (!finalQuoteForExtraction) { 
                 finalQuoteForExtraction = quoteFromSearchSymbol;
              }
              debugLogs.push(`Attempt 2: Searched ${foundSearchQuote.symbol} - Full quote not EUR or incomplete. Price: ${quoteFromSearchSymbol?.regularMarketPrice}, Currency: ${quoteFromSearchSymbol?.currency}`);
@@ -179,8 +170,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
     if (!eurPriceFound || finalQuoteForExtraction.currency?.toUpperCase() !== 'EUR') {
         debugLogs.push(`Final quote for ${isin} (ID: ${id}) was not in EUR (Currency: ${finalQuoteForExtraction.currency}). Clearing price.`);
         console.warn(`[getPriceForIsin RB] Final quote for ${isin} (ID: ${id}) was not in EUR (Currency: ${finalQuoteForExtraction.currency}). Clearing price.`);
-        resultData.currentPrice = undefined; // Explicitly clear price if not EUR
-        // Keep the non-EUR currency if that's all we found, for informational purposes
+        resultData.currentPrice = undefined; 
         resultData.currency = finalQuoteForExtraction.currency || resultData.currency; 
     } else {
         debugLogs.push(`EUR price successfully extracted for ${isin} (ID: ${id}): ${resultData.currentPrice}`);
@@ -189,7 +179,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   } else {
     debugLogs.push(`No quote found for ISIN ${isin} (ID: ${id}) after all attempts. Returning with no price or details.`);
     console.warn(`[getPriceForIsin RB] No quote found for ISIN ${isin} (ID: ${id}) after all attempts. Returning with no price or details.`);
-    resultData = { // Ensure all fields are present even if undefined
+    resultData = { 
         id,
         isin,
         currentPrice: undefined,
@@ -224,3 +214,4 @@ const fetchStockPricesFlow = ai.defineFlow(
     return results.filter(r => r !== null) as FetchStockPricesOutput;
   }
 );
+
