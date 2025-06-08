@@ -217,7 +217,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="link" className="p-0 h-auto font-medium text-current hover:text-primary text-left whitespace-normal">
+          <Button variant="link" className="p-0 h-auto font-medium text-current hover:text-primary text-left whitespace-nowrap">
             {holding.name}
           </Button>
         </PopoverTrigger>
