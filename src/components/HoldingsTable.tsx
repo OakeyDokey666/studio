@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
-import { ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard } from 'lucide-react';
+import { ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, Building2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,7 +23,7 @@ interface HoldingsTableProps {
   holdings: PortfolioHolding[];
 }
 
-type SortKey = keyof PortfolioHolding | 'allocationDifference';
+type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'priceSourceExchange';
 type SortDirection = 'asc' | 'desc';
 
 export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
@@ -63,6 +63,10 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
         if (typeof valA === 'number' && typeof valB === 'number') {
           return sortDirection === 'asc' ? valA - valB : valB - valA;
         }
+        // Handle undefined or null values for sorting, placing them at the end for ascending
+        if (valA === undefined || valA === null) return 1;
+        if (valB === undefined || valB === null) return -1;
+        
         return 0;
       });
     }
@@ -82,6 +86,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'name', label: 'Name', icon: <ListTree className="mr-1 h-4 w-4" /> },
     { key: 'quantity', label: 'Qty', icon: <Hash className="mr-1 h-4 w-4" /> },
     { key: 'currentPrice', label: 'Price (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
+    { key: 'priceSourceExchange', label: 'Exchange', icon: <Building2 className="mr-1 h-4 w-4" /> },
     { key: 'currentAmount', label: 'Value (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'allocationPercentage', label: 'Current Alloc.', icon: <PieChart className="mr-1 h-4 w-4" /> },
     { key: 'targetAllocationPercentage', label: 'Target Alloc.', icon: <Target className="mr-1 h-4 w-4" /> },
@@ -130,6 +135,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                   <TableCell className="font-medium whitespace-nowrap">{holding.name}</TableCell>
                   <TableCell className="text-right">{holding.quantity}</TableCell>
                   <TableCell className="text-right">{formatCurrency(holding.currentPrice)}</TableCell>
+                  <TableCell className="text-center">{holding.priceSourceExchange || 'N/A'}</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(holding.currentAmount)}</TableCell>
                   <TableCell className="text-right">
                      <Badge variant={

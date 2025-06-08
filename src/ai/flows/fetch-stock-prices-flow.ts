@@ -27,6 +27,7 @@ const StockPriceDataSchema = z.object({
   currentPrice: z.number().optional().describe('The latest market price.'),
   currency: z.string().optional().describe('The currency of the price.'),
   symbol: z.string().optional().describe('The ticker symbol found on Yahoo Finance.'),
+  exchange: z.string().optional().describe('The exchange the price was sourced from (e.g., PAR, LSE).'),
 });
 export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
 
@@ -49,6 +50,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
           currentPrice: quote.regularMarketPrice,
           currency: quote.currency,
           symbol: quote.symbol || preferredTicker,
+          exchange: quote.exchange,
         };
       }
     } catch (error) {
@@ -66,6 +68,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         currentPrice: quote.regularMarketPrice,
         currency: quote.currency,
         symbol: quote.symbol,
+        exchange: quote.exchange,
       };
     }
   } catch (error) {
@@ -114,6 +117,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
             currentPrice: quote.regularMarketPrice,
             currency: quote.currency,
             symbol: quote.symbol,
+            exchange: quote.exchange,
           };
         }
       }

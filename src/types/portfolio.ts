@@ -17,6 +17,7 @@ export interface PortfolioHolding {
   distributes?: string;
   targetAllocationPercentage?: number; // Target allocation, calculated from targetBuyAmount
   ticker?: string; // Optional ticker symbol
+  priceSourceExchange?: string; // Exchange from which the current price was sourced
 }
 
 export interface ParsedCsvData {

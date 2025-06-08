@@ -50,6 +50,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         ticker: h.ticker || isinToTickerMap[h.isin] || undefined,
         currentPrice: undefined, // Start with undefined price
         currentAmount: undefined,  // Start with undefined amount
+        priceSourceExchange: undefined, // Start with undefined exchange
     }));
     processHoldings(holdingsWithInitialSetup);
   }, [initialData.holdings, processHoldings]);
@@ -91,8 +92,11 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         if (priceData) {
           if (priceData.currentPrice !== undefined && priceData.currency) {
             if (priceData.currency.toUpperCase() !== 'EUR') {
-              nonEurCurrencyWarnings.push(`Holding ${holding.name} (${priceData.symbol || holding.isin}) price is in ${priceData.currency}, not EUR. Price not updated.`);
-              return holding; // Keep existing (potentially undefined) price
+              nonEurCurrencyWarnings.push(`Holding ${holding.name} (${priceData.symbol || holding.isin}) price is in ${priceData.currency} from ${priceData.exchange || 'N/A'}, not EUR. Price not updated.`);
+              return {
+                ...holding, // Keep old price
+                priceSourceExchange: priceData.exchange, // Still show the exchange where non-EUR price was found
+              };
             }
             pricesUpdatedCount++;
             return {
@@ -100,9 +104,12 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               currentPrice: priceData.currentPrice,
               currentAmount: holding.quantity * priceData.currentPrice,
               ticker: priceData.symbol || holding.ticker, // Update ticker if Yahoo found a better one
+              priceSourceExchange: priceData.exchange,
             };
           } else {
-            notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${priceData.symbol || holding.ticker || 'N/A'}).`);
+            notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${priceData.symbol || holding.ticker || 'N/A'}, Exchange: ${priceData.exchange || 'N/A'}).`);
+            // If price not found, retain existing priceSourceExchange if any, or set from priceData if available
+             return { ...holding, priceSourceExchange: priceData.exchange || holding.priceSourceExchange };
           }
         }
         return holding; // Keep existing (potentially undefined) price if no data or error
@@ -159,7 +166,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       console.log("[InvestoTrackApp] Finished price refresh attempt.");
       setIsRefreshingPrices(false);
     }
-  }, [portfolioHoldings, processHoldings, toast, isRefreshingPrices]); // Added isRefreshingPrices to dependencies
+  }, [portfolioHoldings, processHoldings, toast, isRefreshingPrices]);
 
 
   useEffect(() => {
