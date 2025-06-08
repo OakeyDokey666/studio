@@ -3,7 +3,7 @@
 
 import type { PortfolioHolding, ParsedCsvData } from '@/types/portfolio';
 import type { FetchStockPricesInput, StockPriceData } from '@/ai/flows/fetch-stock-prices-flow';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppHeader } from '@/components/AppHeader';
 import { SummarySection } from '@/components/SummarySection';
 import { HoldingsTable } from '@/components/HoldingsTable';
@@ -36,11 +36,12 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [pricesLastUpdated, setPricesLastUpdated] = useState<Date | null>(null);
   const { toast } = useToast();
+  const initialRefreshDoneRef = useRef(false);
 
   const processHoldings = useCallback((holdingsToProcess: PortfolioHolding[]) => {
     const metricsApplied = calculatePortfolioMetrics(holdingsToProcess);
     setPortfolioHoldings(metricsApplied);
-  }, []); // Removed setPortfolioHoldings from dependencies as it's stable
+  }, []);
 
   useEffect(() => {
     const holdingsWithInitialTickers = initialData.holdings.map(h => ({
@@ -50,7 +51,11 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     processHoldings(holdingsWithInitialTickers);
   }, [initialData.holdings, processHoldings]);
 
-  const handleRefreshPrices = async () => {
+  const handleRefreshPrices = useCallback(async () => {
+    if (isRefreshingPrices) {
+      console.log("[InvestoTrackApp] Price refresh already in progress.");
+      return;
+    }
     setIsRefreshingPrices(true);
     console.log("[InvestoTrackApp] Starting price refresh...");
     try {
@@ -64,7 +69,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
       if (assetsToFetch.length === 0) {
         console.log("[InvestoTrackApp] No holdings to refresh.");
-        toast({ title: "No holdings to refresh", description: "Your portfolio is empty." });
+        if (!initialRefreshDoneRef.current) { // Avoid toast if it's an initial auto-refresh with no data
+             toast({ title: "No holdings to refresh", description: "Your portfolio is empty." });
+        }
         setIsRefreshingPrices(false);
         return;
       }
@@ -89,7 +96,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               ...holding,
               currentPrice: priceData.currentPrice,
               currentAmount: holding.quantity * priceData.currentPrice,
-              ticker: priceData.symbol || holding.ticker, 
+              ticker: priceData.symbol || holding.ticker,
             };
           } else {
             notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${priceData.symbol || holding.ticker || 'N/A'}).`);
@@ -99,7 +106,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       });
 
       processHoldings(updatedHoldings);
-      setPricesLastUpdated(new Date());
+      if (pricesUpdatedCount > 0) {
+        setPricesLastUpdated(new Date());
+      }
+
 
       console.log(`[InvestoTrackApp] Prices updated count: ${pricesUpdatedCount}`);
       console.log(`[InvestoTrackApp] Non-EUR currency warnings:`, nonEurCurrencyWarnings);
@@ -108,10 +118,11 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       if (pricesUpdatedCount > 0) {
         console.log("[InvestoTrackApp] Toasting: Prices Refreshed");
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
-      } else {
+      } else if (initialRefreshDoneRef.current || assetsToFetch.length > 0) { // Don't toast "no updates" if it's the very first auto-load with no data yet
         console.log("[InvestoTrackApp] Toasting: Prices Checked (no EUR updates)");
         toast({ title: "Prices Checked", description: "No EUR prices were updated. They might be current or not found by Yahoo Finance." });
       }
+
 
       if (nonEurCurrencyWarnings.length > 0) {
         console.log("[InvestoTrackApp] Toasting: Currency Mismatch");
@@ -147,7 +158,19 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       console.log("[InvestoTrackApp] Finished price refresh attempt.");
       setIsRefreshingPrices(false);
     }
-  };
+  }, [portfolioHoldings, processHoldings, toast, isRefreshingPrices]);
+
+
+  // useEffect for initial automatic price refresh
+  useEffect(() => {
+    // Only run if portfolioHoldings has been populated from initialData
+    // and the initial refresh hasn't been done yet.
+    if (portfolioHoldings.length > 0 && !initialRefreshDoneRef.current && !isRefreshingPrices) {
+      console.log("[InvestoTrackApp] Triggering initial automatic price refresh.");
+      handleRefreshPrices();
+      initialRefreshDoneRef.current = true; // Mark as done so it doesn't run again automatically
+    }
+  }, [portfolioHoldings, handleRefreshPrices, isRefreshingPrices]);
 
 
   return (
