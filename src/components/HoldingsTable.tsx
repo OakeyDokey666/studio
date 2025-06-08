@@ -14,12 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { 
-  ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, 
-  Building2, Coins, PackagePlus, BarChart3, DollarSign, DivideSquare, Sigma, ChevronsUpDown,
-  Briefcase, Bookmark // Removed Activity, ArrowUpRight, ArrowDownLeft, Minus
-} from 'lucide-react';
+import { ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, Building2, Coins, PackagePlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,24 +23,8 @@ interface HoldingsTableProps {
   holdings: PortfolioHolding[];
 }
 
-type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'priceSourceExchange' | 'newInvestmentAllocation' | 'quantityToBuyFromNewInvestment'; // Removed 'regularMarketChangePercent'
+type SortKey = keyof PortfolioHolding | 'allocationDifference';
 type SortDirection = 'asc' | 'desc';
-
-const formatLargeNumber = (value?: number): string => {
-  if (value === undefined || value === null || isNaN(value)) return 'N/A';
-  return value.toLocaleString('en-US'); 
-};
-
-const formatRatio = (value?: number): string => {
-  if (value === undefined || value === null || isNaN(value)) return 'N/A';
-  return value.toFixed(2);
-}
-
-const formatTer = (value?: number): string => {
-  if (value === undefined || value === null || isNaN(value)) return 'N/A';
-  return `${(value * 100).toFixed(2)}%`;
-}
-
 
 export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -73,9 +52,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
         if (sortKey === 'allocationDifference') {
           valA = Math.abs((a.allocationPercentage ?? 0) - (a.targetAllocationPercentage ?? 0));
           valB = Math.abs((b.allocationPercentage ?? 0) - (b.targetAllocationPercentage ?? 0));
-        }
-        // Removed sorting for 'regularMarketChangePercent'
-         else {
+        } else {
            valA = a[sortKey as keyof PortfolioHolding];
            valB = b[sortKey as keyof PortfolioHolding];
         }
@@ -108,7 +85,6 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'name', label: 'Name', icon: <ListTree className="mr-1 h-4 w-4" /> },
     { key: 'quantity', label: 'Qty', icon: <Hash className="mr-1 h-4 w-4" /> },
     { key: 'currentPrice', label: 'Price (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
-    // { key: 'regularMarketChangePercent', label: 'Day Change', icon: <Activity className="mr-1 h-4 w-4" /> }, // Removed Day Change header
     { key: 'priceSourceExchange', label: 'Exchange', icon: <Building2 className="mr-1 h-4 w-4" /> },
     { key: 'currentAmount', label: 'Value (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'allocationPercentage', label: 'Current Alloc.', icon: <PieChart className="mr-1 h-4 w-4" /> },
@@ -121,95 +97,15 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'isin', label: 'ISIN', icon: <Info className="mr-1 h-4 w-4" /> },
   ];
 
-  // renderDayChange function removed
-
   const renderPriceCell = (holding: PortfolioHolding) => {
     const priceDisplay = formatCurrency(holding.currentPrice);
-    if (holding.currentPrice === undefined) {
-      return <span className="text-muted-foreground">{priceDisplay}</span>;
-    }
-
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="link" className="p-0 h-auto text-right font-normal text-current hover:text-primary">
-            {priceDisplay}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-80">
-          <div className="grid gap-4">
-            <div className="space-y-2">
-              <h4 className="font-medium leading-none text-foreground">{holding.name} - Price Details</h4>
-              <p className="text-sm text-muted-foreground">
-                Symbol: {holding.ticker || holding.isin} ({holding.priceSourceExchange || 'N/A'})
-              </p>
-            </div>
-            <div className="grid gap-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><BarChart3 className="mr-2 h-4 w-4" />Volume</span>
-                <span>{formatLargeNumber(holding.regularMarketVolume)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><BarChart3 className="mr-2 h-4 w-4" />Avg. Volume (10D)</span> 
-                {/* Changed icon to BarChart3 as Activity was removed from imports */}
-                <span>{formatLargeNumber(holding.averageDailyVolume10Day)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><DollarSign className="mr-2 h-4 w-4" />Market Cap</span>
-                <span>{formatCurrency(holding.marketCap, holding.marketCap ? 'EUR' : '')}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><DivideSquare className="mr-2 h-4 w-4" />P/E Ratio</span>
-                <span>{formatRatio(holding.trailingPE)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Sigma className="mr-2 h-4 w-4" />EPS (TTM)</span>
-                <span>{formatRatio(holding.epsTrailingTwelveMonths)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><ChevronsUpDown className="mr-2 h-4 w-4" />52-Week Range</span>
-                <span className="text-right">
-                  {formatCurrency(holding.fiftyTwoWeekLow)} - {formatCurrency(holding.fiftyTwoWeekHigh)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
+    return holding.currentPrice === undefined 
+      ? <span className="text-muted-foreground">{priceDisplay}</span>
+      : <span className="text-right">{priceDisplay}</span>;
   };
 
   const renderNameCell = (holding: PortfolioHolding) => {
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="link" className="p-0 h-auto font-medium text-current hover:text-primary text-left whitespace-nowrap">
-            {holding.name}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-96">
-          <div className="grid gap-4">
-            <div className="space-y-2">
-              <h4 className="font-medium leading-none text-foreground">{holding.name} - Fund Profile</h4>
-            </div>
-            <div className="grid gap-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Briefcase className="mr-2 h-4 w-4" />Fund Size (AUM)</span>
-                <span>{formatCurrency(holding.fundSize, holding.fundSize ? 'EUR' : '')}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Percent className="mr-2 h-4 w-4" />TER (Expense Ratio)</span>
-                <span>{formatTer(holding.ter)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Bookmark className="mr-2 h-4 w-4" />Category</span>
-                <span>{holding.categoryName || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
+    return <span className="font-medium text-left whitespace-nowrap">{holding.name}</span>;
   };
 
 
@@ -251,7 +147,6 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                   <TableCell className="whitespace-nowrap">{renderNameCell(holding)}</TableCell>
                   <TableCell className="text-right">{holding.quantity}</TableCell>
                   <TableCell className="text-right">{renderPriceCell(holding)}</TableCell>
-                  {/* Removed cell for Day Change */}
                   <TableCell className="text-center">{holding.priceSourceExchange || 'N/A'}</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(holding.currentAmount)}</TableCell>
                   <TableCell className="text-right">
@@ -291,4 +186,3 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     </div>
   );
 }
-

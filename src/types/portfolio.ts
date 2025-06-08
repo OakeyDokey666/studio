@@ -3,37 +3,25 @@ export interface PortfolioHolding {
   id: string; // ISIN
   name: string;
   quantity: number;
-  currentPrice?: number; // Should be initially undefined, then fetched
-  currentAmount?: number; // Should be initially undefined, then calculated
+  currentPrice?: number; 
+  currentAmount?: number; 
   objective: string;
   type: string;
   potentialIncome: string;
-  allocationPercentage?: number; // Current allocation, calculated
+  allocationPercentage?: number; 
   targetBuyAmount: number;
   buyPrice?: number;
-  qtyToBuy?: number; // From CSV
+  qtyToBuy?: number; 
   actualGrosAmount?: number;
   isin: string;
   distributes?: string;
-  targetAllocationPercentage?: number; // Target allocation, calculated from targetBuyAmount
-  ticker?: string; // Optional ticker symbol
-  priceSourceExchange?: string; // Exchange from which the current price was sourced
-  newInvestmentAllocation?: number; // Calculated: newInvestmentAmount * targetAllocationPercentage
-  quantityToBuyFromNewInvestment?: number; // Calculated: newInvestmentAllocation / currentPrice, then rounded
+  targetAllocationPercentage?: number; 
+  ticker?: string; 
+  priceSourceExchange?: string; 
   
-  // Additional financial details for price popover
-  regularMarketVolume?: number;
-  averageDailyVolume10Day?: number;
-  marketCap?: number;
-  trailingPE?: number;
-  epsTrailingTwelveMonths?: number;
-  fiftyTwoWeekLow?: number;
-  fiftyTwoWeekHigh?: number;
-
-  // ETF specific details for name popover
-  ter?: number; // Total Expense Ratio from fundProfile.annualReportExpenseRatio.raw
-  fundSize?: number; // Assets Under Management (AUM) from fundProfile.totalAssets.raw
-  categoryName?: string; // Fund category from fundProfile.categoryName
+  // Fields for new investment calculation (dependent on currentPrice)
+  newInvestmentAllocation?: number; 
+  quantityToBuyFromNewInvestment?: number;
 }
 
 export interface ParsedCsvData {
@@ -43,4 +31,3 @@ export interface ParsedCsvData {
 }
 
 export type RoundingOption = 'up' | 'down' | 'classic';
-
