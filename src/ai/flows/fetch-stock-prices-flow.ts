@@ -13,7 +13,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import yahooFinance from 'yahoo-finance2';
 // Using .js extension as it's often required for ESM modules by Node/TS, and ensuring correct type import
-import type { Quote, SearchQuote, QuoteNodeQueryOptions } from 'yahoo-finance2/dist/esm/src/modules/quote.js';
+import type { Quote, QuoteNodeQueryOptions } from 'yahoo-finance2/dist/esm/src/modules/quote.js';
 
 
 const FetchStockPricesInputSchema = z.array(
@@ -40,12 +40,15 @@ const StockPriceDataSchema = z.object({
 });
 export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
 
-const FetchStockPricesOutputSchema = z.array(StockPriceDataSchema);
+const FetchStockPricesOutputSchema = z.array(StockPriceDataSchema); // Correctly defined
 export type FetchStockPricesOutput = z.infer<typeof FetchStockPricesOutputSchema>;
 
-const queryOptions: QuoteNodeQueryOptions = {
-  modules: ['price', 'fundProfile', 'summaryDetail'],
-};
+
+// queryOptions will be constructed directly in the quote call.
+// const queryOptions: QuoteNodeQueryOptions = {
+//   modules: ['price', 'fundProfile', 'summaryDetail'],
+// };
+
 
 function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string, debugLogs: string[]): Partial<StockPriceData> {
   if (!quote) {
@@ -53,6 +56,28 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
     return { id, isin };
   }
   debugLogs.push(`extractDataFromQuote: Processing quote for ISIN ${isin}, Symbol ${quote.symbol}`);
+
+  // Enhanced logging for fundProfile and summaryDetail
+  debugLogs.push(`  Raw quote.fundProfile exists: ${quote.fundProfile ? 'Yes' : 'No'}`);
+  if (quote.fundProfile) {
+    debugLogs.push(`    fundProfile.annualReportExpenseRatio (raw object): ${JSON.stringify(quote.fundProfile.annualReportExpenseRatio)}`);
+    debugLogs.push(`    fundProfile.annualReportExpenseRatio?.raw: ${quote.fundProfile.annualReportExpenseRatio?.raw}`);
+    debugLogs.push(`    fundProfile.totalAssets (raw object): ${JSON.stringify(quote.fundProfile.totalAssets)}`);
+    debugLogs.push(`    fundProfile.totalAssets?.raw: ${quote.fundProfile.totalAssets?.raw}`);
+    debugLogs.push(`    fundProfile.categoryName: ${quote.fundProfile.categoryName}`);
+  } else {
+    debugLogs.push(`    fundProfile details not available.`);
+  }
+
+  debugLogs.push(`  Raw quote.summaryDetail exists: ${quote.summaryDetail ? 'Yes' : 'No'}`);
+  if (quote.summaryDetail) {
+    debugLogs.push(`    summaryDetail.expenseRatio (raw object): ${JSON.stringify(quote.summaryDetail.expenseRatio)}`);
+    debugLogs.push(`    summaryDetail.expenseRatio?.raw: ${quote.summaryDetail.expenseRatio?.raw}`);
+    debugLogs.push(`    summaryDetail.totalAssets (raw object): ${JSON.stringify(quote.summaryDetail.totalAssets)}`);
+    debugLogs.push(`    summaryDetail.totalAssets?.raw: ${quote.summaryDetail.totalAssets?.raw}`);
+  } else {
+    debugLogs.push(`    summaryDetail details not available.`);
+  }
 
   const data: Partial<StockPriceData> = {
     id,
@@ -69,18 +94,20 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
   return data;
 }
 
+
 async function getPriceForIsin(isin: string, id: string, preferredTicker?: string): Promise<StockPriceData> {
   const debugLogs: string[] = [];
   debugLogs.push(`[getPriceForIsin RB] Start: ISIN: ${isin}, ID: ${id}, Ticker: ${preferredTicker}`);
 
   let finalQuoteForExtraction: Quote | undefined = undefined;
   let eurPriceFound = false;
+  const modulesToFetch: QuoteNodeQueryOptions = { modules: ['price', 'fundProfile', 'summaryDetail'] };
 
   // Attempt 0: Preferred Ticker
   if (preferredTicker) {
-    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} with modules: ${queryOptions.modules?.join(', ') || 'none'}`);
+    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} with modules: ${modulesToFetch.modules?.join(', ') || 'none'}`);
     try {
-      const quote = await yahooFinance.quote(preferredTicker, queryOptions);
+      const quote = await yahooFinance.quote(preferredTicker, modulesToFetch);
       debugLogs.push(`Attempt 0: ${preferredTicker} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
       if (quote?.regularMarketPrice !== undefined && quote.currency?.toUpperCase() === 'EUR') {
         debugLogs.push(`Attempt 0: EUR price found for ${preferredTicker}.`);
@@ -101,9 +128,9 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   // Attempt 1: ISIN as Symbol (if EUR price not found yet)
   if (!eurPriceFound) {
-    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} with modules: ${queryOptions.modules?.join(', ') || 'none'}`);
+    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} with modules: ${modulesToFetch.modules?.join(', ') || 'none'}`);
     try {
-      const quote = await yahooFinance.quote(isin, queryOptions);
+      const quote = await yahooFinance.quote(isin, modulesToFetch);
       debugLogs.push(`Attempt 1: ${isin} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
       if (quote?.regularMarketPrice !== undefined && quote.currency?.toUpperCase() === 'EUR') {
         debugLogs.push(`Attempt 1: EUR price found for ISIN ${isin}.`);
@@ -125,22 +152,21 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
     debugLogs.push(`Attempt 2: Searching by ISIN ${isin}`);
     try {
       const searchResults = await yahooFinance.search(isin); 
-      const searchQuotes = (searchResults.quotes || []) as SearchQuote[]; 
+      const searchQuotes = (searchResults.quotes || []); 
       debugLogs.push(`Attempt 2: Search returned ${searchQuotes.length} quotes.`);
 
       if (searchQuotes.length > 0) {
         const foundSearchQuote = searchQuotes.find(q => {
           const symbol = q.symbol; 
           const exchangeDisplay = q.exchDisp?.toUpperCase();
-          // Note: SearchQuote type might not have currency directly, so we look for exchange hints or symbol patterns
           return symbol &&
                  (symbol.endsWith('.PA') || symbol.endsWith('.DE') || symbol.endsWith('.MI') || symbol.endsWith('.AS') || symbol.endsWith('.MC') ||
                   exchangeDisplay?.includes('EURONEXT') || exchangeDisplay?.includes('XETRA') || exchangeDisplay?.includes('PARIS'));
         });
 
         if (foundSearchQuote?.symbol) {
-          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote with modules: ${queryOptions.modules?.join(', ') || 'none'}.`);
-          const quoteFromSearchSymbol = await yahooFinance.quote(foundSearchQuote.symbol, queryOptions);
+          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote with modules: ${modulesToFetch.modules?.join(', ') || 'none'}.`);
+          const quoteFromSearchSymbol = await yahooFinance.quote(foundSearchQuote.symbol, modulesToFetch);
           debugLogs.push(`Attempt 2: Full quote for ${foundSearchQuote.symbol} received - Price: ${quoteFromSearchSymbol?.regularMarketPrice}, Currency: ${quoteFromSearchSymbol?.currency}, Symbol: ${quoteFromSearchSymbol?.symbol}, Exchange: ${quoteFromSearchSymbol?.exchange}`);
           if (quoteFromSearchSymbol?.regularMarketPrice !== undefined && quoteFromSearchSymbol.currency?.toUpperCase() === 'EUR') {
             debugLogs.push(`Attempt 2: EUR price confirmed for searched symbol ${foundSearchQuote.symbol}.`);
