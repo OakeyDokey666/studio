@@ -37,8 +37,9 @@ const StockPriceDataSchema = z.object({
   epsTrailingTwelveMonths: z.number().optional().describe('Earnings Per Share over the trailing twelve months.'),
   fiftyTwoWeekLow: z.number().optional().describe('The lowest price in the past 52 weeks.'),
   fiftyTwoWeekHigh: z.number().optional().describe('The highest price in the past 52 weeks.'),
-  ter: z.number().optional().describe('Total Expense Ratio (annual).'),
-  fundSize: z.number().optional().describe('Fund Size / Assets Under Management (AUM).'),
+  ter: z.number().optional().describe('Total Expense Ratio (annual) from fundProfile.annualReportExpenseRatio.raw.'),
+  fundSize: z.number().optional().describe('Fund Size / Assets Under Management (AUM) from fundProfile.totalAssets.raw.'),
+  categoryName: z.string().optional().describe('Fund category from fundProfile.categoryName.'),
 });
 export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
 
@@ -67,15 +68,16 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
     epsTrailingTwelveMonths: q.epsTrailingTwelveMonths,
     fiftyTwoWeekLow: q.fiftyTwoWeekLow,
     fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
-    ter: q.fundProfile?.annualReportExpenseRatio?.raw ?? q.annualReportExpenseRatio?.raw, // TER from fundProfile or directly
-    fundSize: q.summaryDetail?.totalAssets?.raw ?? q.summaryProfile?.totalAssets?.raw, // AUM from summaryDetail or summaryProfile
+    ter: q.fundProfile?.annualReportExpenseRatio?.raw,
+    fundSize: q.fundProfile?.totalAssets?.raw ?? q.summaryDetail?.totalAssets?.raw ?? q.summaryProfile?.totalAssets?.raw, // Prioritize fundProfile.totalAssets
+    categoryName: q.fundProfile?.categoryName,
   });
   
 
   // Attempt 0: Use preferredTicker if provided
   if (preferredTicker) {
     try {
-      quote = await yahooFinance.quote(preferredTicker);
+      quote = await yahooFinance.quote(preferredTicker, { fields: ['price', 'summaryDetail', 'summaryProfile', 'fundProfile', 'defaultKeyStatistics', 'financialData'] });
       if (quote && quote.regularMarketPrice && quote.currency) {
         if (quote.currency.toUpperCase() === 'EUR') {
           return extractQuoteData(quote);
@@ -90,7 +92,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   // Attempt 1: Directly use ISIN as symbol (works for some major exchanges)
   try {
-    quote = await yahooFinance.quote(isin);
+    quote = await yahooFinance.quote(isin, { fields: ['price', 'summaryDetail', 'summaryProfile', 'fundProfile', 'defaultKeyStatistics', 'financialData'] });
     if (quote && quote.regularMarketPrice && quote.currency && quote.currency.toUpperCase() === 'EUR') {
       return extractQuoteData(quote);
     }
@@ -132,7 +134,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
 
       if (bestMatch && bestMatch.symbol) {
-        quote = await yahooFinance.quote(bestMatch.symbol);
+        quote = await yahooFinance.quote(bestMatch.symbol, { fields: ['price', 'summaryDetail', 'summaryProfile', 'fundProfile', 'defaultKeyStatistics', 'financialData'] });
         if (quote && quote.regularMarketPrice && quote.currency) {
           return extractQuoteData(quote);
         }
@@ -157,8 +159,9 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
     epsTrailingTwelveMonths: quote?.epsTrailingTwelveMonths,
     fiftyTwoWeekLow: quote?.fiftyTwoWeekLow,
     fiftyTwoWeekHigh: quote?.fiftyTwoWeekHigh,
-    ter: quote?.fundProfile?.annualReportExpenseRatio?.raw ?? quote?.annualReportExpenseRatio?.raw,
-    fundSize: quote?.summaryDetail?.totalAssets?.raw ?? quote?.summaryProfile?.totalAssets?.raw,
+    ter: quote?.fundProfile?.annualReportExpenseRatio?.raw,
+    fundSize: quote?.fundProfile?.totalAssets?.raw ?? quote?.summaryDetail?.totalAssets?.raw ?? quote?.summaryProfile?.totalAssets?.raw,
+    categoryName: quote?.fundProfile?.categoryName,
   };
   return returnData;
 }
@@ -180,3 +183,4 @@ const fetchStockPricesFlow = ai.defineFlow(
     return results.filter(r => r !== null) as StockPriceData[];
   }
 );
+

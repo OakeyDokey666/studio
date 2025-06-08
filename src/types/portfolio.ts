@@ -33,8 +33,9 @@ export interface PortfolioHolding {
   fiftyTwoWeekHigh?: number;
 
   // ETF specific details
-  ter?: number; // Total Expense Ratio
-  fundSize?: number; // Assets Under Management (AUM)
+  ter?: number; // Total Expense Ratio from fundProfile.annualReportExpenseRatio.raw
+  fundSize?: number; // Assets Under Management (AUM) from fundProfile.totalAssets.raw
+  categoryName?: string; // Fund category from fundProfile.categoryName
   // replicationMethod?: string; // Best added via CSV
   // distributionPolicy?: string; // Detailed policy, existing 'distributes' for months
 }
@@ -46,3 +47,4 @@ export interface ParsedCsvData {
 }
 
 export type RoundingOption = 'up' | 'down' | 'classic';
+

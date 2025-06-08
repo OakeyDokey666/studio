@@ -18,7 +18,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { 
   ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, 
   Building2, Coins, PackagePlus, ArrowUpRight, ArrowDownLeft, Minus, Activity, BarChart3, 
-  DollarSign, DivideSquare, Sigma, ChevronsUpDown, FileText, Layers, Shuffle, Briefcase
+  DollarSign, DivideSquare, Sigma, ChevronsUpDown, Briefcase, Bookmark
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -221,35 +221,23 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
             {holding.name}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-96"> {/* Increased width for more info */}
+        <PopoverContent className="w-96">
           <div className="grid gap-4">
             <div className="space-y-2">
-              <h4 className="font-medium leading-none text-foreground">{holding.name} - Fund Details</h4>
+              <h4 className="font-medium leading-none text-foreground">{holding.name} - Fund Profile</h4>
             </div>
             <div className="grid gap-2 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><FileText className="mr-2 h-4 w-4" />ISIN</span>
-                <span className="font-mono">{holding.isin}</span>
+                <span className="text-muted-foreground flex items-center"><Briefcase className="mr-2 h-4 w-4" />Fund Size (AUM)</span>
+                <span>{formatCurrency(holding.fundSize, holding.fundSize ? 'EUR' : '')}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground flex items-center"><Percent className="mr-2 h-4 w-4" />TER (Expense Ratio)</span>
                 <span>{formatTer(holding.ter)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Briefcase className="mr-2 h-4 w-4" />Fund Size (AUM)</span>
-                <span>{formatCurrency(holding.fundSize, holding.fundSize ? 'EUR' : '')}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Shuffle className="mr-2 h-4 w-4" />Distribution Policy</span>
-                <span>{holding.distributes || 'N/A (Check CSV)'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Layers className="mr-2 h-4 w-4" />Replication Method</span>
-                <span className="italic">Not available via Yahoo. Add to CSV for details.</span>
-              </div>
-               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Landmark className="mr-2 h-4 w-4" />Asset Type</span>
-                <span>{holding.type}</span>
+                <span className="text-muted-foreground flex items-center"><Bookmark className="mr-2 h-4 w-4" />Category</span>
+                <span>{holding.categoryName || 'N/A'}</span>
               </div>
             </div>
           </div>
@@ -337,3 +325,4 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     </div>
   );
 }
+

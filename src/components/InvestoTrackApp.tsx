@@ -42,6 +42,7 @@ type PriceMapEntry = {
   fiftyTwoWeekHigh?: number;
   ter?: number;
   fundSize?: number;
+  categoryName?: string;
 };
 
 
@@ -74,8 +75,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       epsTrailingTwelveMonths: undefined,
       fiftyTwoWeekLow: undefined,
       fiftyTwoWeekHigh: undefined,
-      ter: undefined,
+      ter: undefined, // Ensure these are initialized
       fundSize: undefined,
+      categoryName: undefined,
     }));
     setBaseHoldings(initialSetup);
   }, [initialData.holdings]);
@@ -107,8 +109,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         epsTrailingTwelveMonths: priceInfo?.epsTrailingTwelveMonths,
         fiftyTwoWeekLow: priceInfo?.fiftyTwoWeekLow,
         fiftyTwoWeekHigh: priceInfo?.fiftyTwoWeekHigh,
-        ter: priceInfo?.ter,
-        fundSize: priceInfo?.fundSize,
+        ter: priceInfo?.ter ?? h.ter, // Use fetched if available, else from CSV (if added later)
+        fundSize: priceInfo?.fundSize ?? h.fundSize,
+        categoryName: priceInfo?.categoryName ?? h.categoryName,
       };
     });
 
@@ -168,6 +171,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
             fiftyTwoWeekHigh: priceData.fiftyTwoWeekHigh,
             ter: priceData.ter,
             fundSize: priceData.fundSize,
+            categoryName: priceData.categoryName,
           };
 
           if (priceData.currentPrice !== undefined && priceData.currency) {
@@ -295,3 +299,4 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     </div>
   );
 }
+
