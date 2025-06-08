@@ -134,7 +134,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     return (
       <span className={cn('flex items-center justify-end space-x-1', colorClass)}>
         {Icon && <Icon className="h-4 w-4" />}
-        <span>{formatPercentage(changePercent * 100)}</span>
+        <span>{formatPercentage(changePercent)}</span>
       </span>
     );
   };
@@ -249,3 +249,4 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     </div>
   );
 }
+

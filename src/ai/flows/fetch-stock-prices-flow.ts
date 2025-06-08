@@ -111,11 +111,12 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   let finalQuoteForExtraction: Quote | undefined = undefined;
   let eurPriceFound = false;
   
-  debugLogs.push(`  Using queryOptions with modules: ${queryOptions.modules?.join(', ') || 'none specified'}`);
+  const modulesToRequest = queryOptions.modules?.join(', ') || 'library defaults';
+  debugLogs.push(`  Using queryOptions with modules: ${modulesToRequest}`);
 
   // Attempt 0: Preferred Ticker
   if (preferredTicker) {
-    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} with modules: ${queryOptions.modules?.join(', ') || 'none'}`);
+    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} with modules: ${modulesToRequest}`);
     try {
       const quote = await yahooFinance.quote(preferredTicker, {}, queryOptions);
       debugLogs.push(`Attempt 0: ${preferredTicker} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
@@ -138,7 +139,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   // Attempt 1: ISIN as Symbol (if EUR price not found yet)
   if (!eurPriceFound) {
-    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} with modules: ${queryOptions.modules?.join(', ') || 'none'}`);
+    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} with modules: ${modulesToRequest}`);
     try {
       const quote = await yahooFinance.quote(isin, {}, queryOptions);
       debugLogs.push(`Attempt 1: ${isin} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
@@ -175,7 +176,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         });
 
         if (foundSearchQuote?.symbol) {
-          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote with modules: ${queryOptions.modules?.join(', ') || 'none'}.`);
+          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote with modules: ${modulesToRequest}.`);
           const quoteFromSearchSymbol = await yahooFinance.quote(foundSearchQuote.symbol, {}, queryOptions);
           debugLogs.push(`Attempt 2: Full quote for ${foundSearchQuote.symbol} received - Price: ${quoteFromSearchSymbol?.regularMarketPrice}, Currency: ${quoteFromSearchSymbol?.currency}, Symbol: ${quoteFromSearchSymbol?.symbol}, Exchange: ${quoteFromSearchSymbol?.exchange}`);
           if (quoteFromSearchSymbol?.regularMarketPrice !== undefined && quoteFromSearchSymbol.currency?.toUpperCase() === 'EUR') {
