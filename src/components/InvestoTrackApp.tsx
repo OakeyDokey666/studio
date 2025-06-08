@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { SummarySection } from '@/components/SummarySection';
 import { HoldingsTable } from '@/components/HoldingsTable';
 import { RebalanceAdvisor } from '@/components/RebalanceAdvisor';
+import { DebugLogViewerDialog } from '@/components/DebugLogViewerDialog';
 import { calculatePortfolioMetrics } from '@/lib/portfolioUtils';
 import { fetchStockPrices } from '@/ai/flows/fetch-stock-prices-flow';
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +38,7 @@ type PriceMapEntry = {
   debugLogs?: string[];
 };
 
+type CollectedDebugLogs = Record<string, { name: string; logs: string[] }>;
 
 export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const [portfolioHoldings, setPortfolioHoldings] = useState<PortfolioHolding[]>([]);
@@ -49,6 +51,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const { toast } = useToast();
   const initialRefreshDoneRef = useRef(false);
   const [currentPricesMap, setCurrentPricesMap] = useState<Map<string, PriceMapEntry>>(new Map());
+  const [collectedDebugLogs, setCollectedDebugLogs] = useState<CollectedDebugLogs>({});
+  const [isLogViewerOpen, setIsLogViewerOpen] = useState(false);
+
+  const toggleLogViewer = () => setIsLogViewerOpen(!isLogViewerOpen);
 
   useEffect(() => {
     const initialSetup = initialData.holdings.map(h => ({
@@ -83,7 +89,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         ter: priceInfo?.ter,
         fundSize: priceInfo?.fundSize,
         categoryName: priceInfo?.categoryName,
-        debugLogs: priceInfo?.debugLogs, // Pass debug logs through
+        debugLogs: priceInfo?.debugLogs,
       };
     });
 
@@ -100,6 +106,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     }
     setIsRefreshingPrices(true);
     console.log("[InvestoTrackApp RB] Starting price refresh for baseHoldings:", baseHoldings.map(h => h.isin));
+    
+    const newCollectedLogs: CollectedDebugLogs = {};
+
     try {
       const assetsToFetch: FetchStockPricesInput = baseHoldings.map(h => ({
         isin: h.isin,
@@ -127,18 +136,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
       fetchedPricesData.forEach(priceData => {
         const holdingFromBase = baseHoldings.find(h => h.id === priceData.id);
-        if (priceData.debugLogs && priceData.debugLogs.length > 0) {
-            toast({
-                title: `Debug Logs: ${priceData.isin}`,
-                description: (
-                    <pre className="whitespace-pre-wrap text-xs max-h-60 overflow-y-auto">
-                        {priceData.debugLogs.join('\n')}
-                    </pre>
-                ),
-                duration: 20000, // Keep debug toasts longer
-                variant: "default",
-                className: "w-full max-w-md md:max-w-lg lg:max-w-xl"
-            });
+        
+        if (holdingFromBase && priceData.debugLogs && priceData.debugLogs.length > 0) {
+            newCollectedLogs[priceData.id] = { name: holdingFromBase.name, logs: priceData.debugLogs };
         }
 
         if (holdingFromBase) {
@@ -158,7 +158,6 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
           } else {
             const warningMsg = `Could not find EUR price for ${holdingFromBase.name} (ISIN: ${holdingFromBase.isin}, Symbol: ${priceData.symbol || holdingFromBase.ticker || 'N/A'}, Reported Exchange: ${priceData.exchange || 'N/A'}, Reported Currency: ${priceData.currency || 'N/A'}).`;
             notFoundWarnings.push(warningMsg);
-            // Log to server console as well as debugLogs should cover this for toast
             console.warn(`[InvestoTrackApp RB] ${warningMsg}`);
             const existingEntry = currentPricesMap.get(holdingFromBase.id);
             entryToSet.price = existingEntry?.price; 
@@ -166,10 +165,12 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
           newPricesMapUpdates.set(holdingFromBase.id, entryToSet);
         }
       });
+      
+      setCollectedDebugLogs(newCollectedLogs);
 
       setCurrentPricesMap(prevMap => {
         const combinedMap = new Map(prevMap);
-        baseHoldings.forEach(bh => { // Ensure all base holdings have an entry
+        baseHoldings.forEach(bh => {
             if (!combinedMap.has(bh.id)) {
                  combinedMap.set(bh.id, { debugLogs: [`No price data received for ${bh.isin}`] });
             }
@@ -189,13 +190,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
       } else if (initialRefreshDoneRef.current || assetsToFetch.length > 0) {
         if (notFoundWarnings.length === 0 && fetchedPricesData.every(pd => pd.currentPrice !== undefined)) {
-          // This case means all prices were found and were already current or no change.
           toast({ title: "Prices Checked", description: "No new EUR prices were found or they were already current." });
         } else if (notFoundWarnings.length === 0 && fetchedPricesData.length === 0 && assetsToFetch.length > 0) {
-          // No data returned at all
            toast({ title: "Price Fetch Issue", description: "No data returned from price service for any asset.", variant: "destructive" });
         }
-        // The "Price Not Found During Refresh" toast will be shown if notFoundWarnings has items.
       }
 
 
@@ -207,7 +205,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               {notFoundWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
             </ul>
           ),
-          variant: "destructive", // Changed to destructive for more visibility
+          variant: "destructive",
           duration: 15000,
         });
       }
@@ -235,6 +233,8 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         onRefreshPrices={handleRefreshPrices}
         isRefreshingPrices={isRefreshingPrices}
         pricesLastUpdated={pricesLastUpdated}
+        onViewLogs={toggleLogViewer}
+        hasLogs={Object.keys(collectedDebugLogs).length > 0}
       />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {csvErrors.length > 0 && (
@@ -266,6 +266,11 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       <footer className="py-6 text-center text-sm text-muted-foreground border-t border-border">
         © {new Date().getFullYear()} InvestoTrack. Powered by Firebase Studio.
       </footer>
+      <DebugLogViewerDialog 
+        logs={collectedDebugLogs} 
+        isOpen={isLogViewerOpen} 
+        onOpenChange={setIsLogViewerOpen} 
+      />
     </div>
   );
 }
