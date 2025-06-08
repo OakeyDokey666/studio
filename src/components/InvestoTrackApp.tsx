@@ -22,7 +22,7 @@ interface InvestoTrackAppProps {
 const isinToTickerMap: Record<string, string> = {
   "FR0013412012": "PAASI.PA", // Amundi PEA MSCI Emerging Asia ESG Leaders (Euronext Paris)
   "LU1812092168": "SEL.AS",    // Amundi Stoxx Europe Select Dividend 30 (Euronext Amsterdam)
-  "IE00B4K6B022": "E50E.PA",  // HSBC EURO STOXX 50 UCITS ETF EUR (Euronext Paris)
+  "IE00B4K6B022": "50E.PA",   // HSBC EURO STOXX 50 UCITS ETF EUR (Euronext Paris) - Corrected
   "IE00BZ4BMM98": "EUHD.PA",  // Invesco EURO STOXX High Dividend Low Volatility (Euronext Paris)
   "IE0002XZSHO1": "WPEA.PA",  // iShares MSCI World Swap PEA UCITS ETF EUR (Euronext Paris)
   "IE00B5M1WJ87": "EUDV.AS"   // SPDR S&P Euro Dividend Aristocrats (Euronext Amsterdam)
@@ -73,7 +73,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
       if (assetsToFetch.length === 0) {
         console.log("[InvestoTrackApp] No holdings to refresh.");
-        if (initialRefreshDoneRef.current) { 
+        if (initialRefreshDoneRef.current) {
              toast({ title: "No holdings to refresh", description: "Your portfolio is empty." });
         }
         setIsRefreshingPrices(false);
@@ -92,7 +92,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         if (priceData) {
           if (priceData.currentPrice !== undefined && priceData.currency) {
             if (priceData.currency.toUpperCase() !== 'EUR') {
-              nonEurCurrencyWarnings.push(`Holding ${holding.name} (${priceData.symbol || holding.isin}) price is in ${priceData.currency} from ${priceData.exchange || 'N/A'}, not EUR. Price not updated.`);
+              nonEurCurrencyWarnings.push(`Holding ${holding.name} (${priceData.symbol || holding.isin} on ${priceData.exchange || 'N/A'}) price is in ${priceData.currency}, not EUR. Price not updated.`);
               return {
                 ...holding, // Keep old price
                 priceSourceExchange: priceData.exchange, // Still show the exchange where non-EUR price was found
@@ -127,7 +127,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       if (pricesUpdatedCount > 0) {
         console.log("[InvestoTrackApp] Toasting: Prices Refreshed");
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
-      } else if (initialRefreshDoneRef.current || assetsToFetch.length > 0) { 
+      } else if (initialRefreshDoneRef.current || assetsToFetch.length > 0) {
         console.log("[InvestoTrackApp] Toasting: Prices Checked (no EUR updates)");
         toast({ title: "Prices Checked", description: "No EUR prices were updated. They might be current or not found by Yahoo Finance." });
       }
@@ -173,7 +173,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     if (portfolioHoldings.length > 0 && !initialRefreshDoneRef.current && !isRefreshingPrices) {
       console.log("[InvestoTrackApp] Triggering initial automatic price refresh.");
       handleRefreshPrices();
-      initialRefreshDoneRef.current = true; 
+      initialRefreshDoneRef.current = true;
     }
   }, [portfolioHoldings, handleRefreshPrices, isRefreshingPrices]);
 
