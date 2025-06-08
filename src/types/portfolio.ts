@@ -20,10 +20,8 @@ export interface PortfolioHolding {
   priceSourceExchange?: string; // Exchange from which the current price was sourced
   newInvestmentAllocation?: number; // Calculated: newInvestmentAmount * targetAllocationPercentage
   quantityToBuyFromNewInvestment?: number; // Calculated: newInvestmentAllocation / currentPrice, then rounded
-  regularMarketChange?: number; // Absolute change from previous close
-  regularMarketChangePercent?: number; // Percentage change from previous close
-
-  // Additional financial details for popover
+  
+  // Additional financial details for price popover
   regularMarketVolume?: number;
   averageDailyVolume10Day?: number;
   marketCap?: number;
@@ -32,12 +30,10 @@ export interface PortfolioHolding {
   fiftyTwoWeekLow?: number;
   fiftyTwoWeekHigh?: number;
 
-  // ETF specific details
+  // ETF specific details for name popover
   ter?: number; // Total Expense Ratio from fundProfile.annualReportExpenseRatio.raw
   fundSize?: number; // Assets Under Management (AUM) from fundProfile.totalAssets.raw
   categoryName?: string; // Fund category from fundProfile.categoryName
-  // replicationMethod?: string; // Best added via CSV
-  // distributionPolicy?: string; // Detailed policy, existing 'distributes' for months
 }
 
 export interface ParsedCsvData {

@@ -31,8 +31,6 @@ const isinToTickerMap: Record<string, string> = {
 type PriceMapEntry = {
   price?: number;
   exchange?: string;
-  regularMarketChange?: number;
-  regularMarketChangePercent?: number;
   regularMarketVolume?: number;
   averageDailyVolume10Day?: number;
   marketCap?: number;
@@ -66,8 +64,6 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       currentPrice: undefined,
       currentAmount: undefined,
       priceSourceExchange: undefined,
-      regularMarketChange: undefined,
-      regularMarketChangePercent: undefined,
       regularMarketVolume: undefined,
       averageDailyVolume10Day: undefined,
       marketCap: undefined,
@@ -75,7 +71,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       epsTrailingTwelveMonths: undefined,
       fiftyTwoWeekLow: undefined,
       fiftyTwoWeekHigh: undefined,
-      ter: undefined, // Ensure these are initialized
+      ter: undefined, 
       fundSize: undefined,
       categoryName: undefined,
     }));
@@ -100,8 +96,6 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         currentPrice: livePrice, 
         currentAmount: livePrice !== undefined ? h.quantity * livePrice : undefined,
         priceSourceExchange: priceInfo?.exchange ?? h.priceSourceExchange,
-        regularMarketChange: priceInfo?.regularMarketChange,
-        regularMarketChangePercent: priceInfo?.regularMarketChangePercent,
         regularMarketVolume: priceInfo?.regularMarketVolume,
         averageDailyVolume10Day: priceInfo?.averageDailyVolume10Day,
         marketCap: priceInfo?.marketCap,
@@ -109,7 +103,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         epsTrailingTwelveMonths: priceInfo?.epsTrailingTwelveMonths,
         fiftyTwoWeekLow: priceInfo?.fiftyTwoWeekLow,
         fiftyTwoWeekHigh: priceInfo?.fiftyTwoWeekHigh,
-        ter: priceInfo?.ter ?? h.ter, // Use fetched if available, else from CSV (if added later)
+        ter: priceInfo?.ter ?? h.ter, 
         fundSize: priceInfo?.fundSize ?? h.fundSize,
         categoryName: priceInfo?.categoryName ?? h.categoryName,
       };
@@ -146,22 +140,20 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         return;
       }
 
-      const fetchedPrices: StockPriceData[] = await fetchStockPrices(assetsToFetch);
-      console.log("[InvestoTrackApp] Fetched prices raw data:", fetchedPrices);
+      const fetchedPricesData: StockPriceData[] = await fetchStockPrices(assetsToFetch);
+      console.log("[InvestoTrackApp] Fetched prices raw data from flow:", fetchedPricesData);
 
       let pricesUpdatedCount = 0;
       let nonEurCurrencyWarnings: string[] = [];
       let notFoundWarnings: string[] = [];
       const newPricesMapUpdates = new Map<string, PriceMapEntry>();
 
-      fetchedPrices.forEach(priceData => {
+      fetchedPricesData.forEach(priceData => {
         const holdingFromBase = baseHoldings.find(h => h.id === priceData.id);
         if (holdingFromBase) {
           const existingEntry = currentPricesMap.get(holdingFromBase.id);
           let entryToSet: PriceMapEntry = {
             exchange: priceData.exchange,
-            regularMarketChange: priceData.regularMarketChange,
-            regularMarketChangePercent: priceData.regularMarketChangePercent,
             regularMarketVolume: priceData.regularMarketVolume,
             averageDailyVolume10Day: priceData.averageDailyVolume10Day,
             marketCap: priceData.marketCap,
@@ -174,17 +166,23 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
             categoryName: priceData.categoryName,
           };
 
-          if (priceData.currentPrice !== undefined && priceData.currency) {
-            if (priceData.currency.toUpperCase() !== 'EUR') {
-              nonEurCurrencyWarnings.push(`Holding ${holdingFromBase.name} (${priceData.symbol || holdingFromBase.isin} on ${priceData.exchange || 'N/A'}) price is in ${priceData.currency}, not EUR. Price not updated.`);
-              entryToSet.price = existingEntry?.price; // Keep old price
+          // The flow should now only return currentPrice if it's EUR.
+          // If currentPrice is undefined, it means no EUR price was found.
+          if (priceData.currentPrice !== undefined) {
+            if (priceData.currency?.toUpperCase() === 'EUR') {
+                pricesUpdatedCount++;
+                entryToSet.price = priceData.currentPrice;
+                console.log(`[InvestoTrackApp] Price updated for ${holdingFromBase.name}: ${priceData.currentPrice} ${priceData.currency}`);
             } else {
-              pricesUpdatedCount++;
-              entryToSet.price = priceData.currentPrice; // Use new EUR price
+                // This case should ideally not happen if the flow filters correctly, but as a safeguard:
+                nonEurCurrencyWarnings.push(`Holding ${holdingFromBase.name} (${priceData.symbol || holdingFromBase.isin}) received non-EUR price ${priceData.currentPrice} ${priceData.currency} from flow. Price not updated.`);
+                entryToSet.price = existingEntry?.price; // Keep old price
             }
           } else {
-            notFoundWarnings.push(`Could not find EUR price for ${holdingFromBase.name} (ISIN: ${holdingFromBase.isin}, Ticker: ${priceData.symbol || holdingFromBase.ticker || 'N/A'}, Exchange: ${priceData.exchange || 'N/A'}).`);
+            // currentPrice is undefined from the flow
+            notFoundWarnings.push(`Could not find EUR price for ${holdingFromBase.name} (ISIN: ${holdingFromBase.isin}, Symbol: ${priceData.symbol || holdingFromBase.ticker || 'N/A'}, Reported Exchange: ${priceData.exchange || 'N/A'}).`);
             entryToSet.price = existingEntry?.price; // Keep old price if new one not found
+             console.log(`[InvestoTrackApp] No EUR price found by flow for ${holdingFromBase.name}. Current value in map: ${existingEntry?.price}`);
           }
           newPricesMapUpdates.set(holdingFromBase.id, entryToSet);
         }
@@ -212,13 +210,13 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
       } else if (initialRefreshDoneRef.current || assetsToFetch.length > 0) {
         if (nonEurCurrencyWarnings.length === 0 && notFoundWarnings.length === 0) {
-          toast({ title: "Prices Checked", description: "No new EUR prices were found. They might be current or not found by Yahoo Finance." });
+          toast({ title: "Prices Checked", description: "No new EUR prices were found or they were already current." });
         }
       }
 
       if (nonEurCurrencyWarnings.length > 0) {
         toast({
-          title: "Currency Mismatch",
+          title: "Currency Mismatch During Update",
           description: (
             <ul className="list-disc pl-5">
               {nonEurCurrencyWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
@@ -236,7 +234,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               {notFoundWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
             </ul>
           ),
-          variant: "default",
+          variant: "default", // Changed from destructive as it's informational if some are found, some not
           duration: 10000,
         });
       }

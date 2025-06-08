@@ -17,8 +17,8 @@ import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { 
   ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, 
-  Building2, Coins, PackagePlus, ArrowUpRight, ArrowDownLeft, Minus, Activity, BarChart3, 
-  DollarSign, DivideSquare, Sigma, ChevronsUpDown, Briefcase, Bookmark
+  Building2, Coins, PackagePlus, BarChart3, DollarSign, DivideSquare, Sigma, ChevronsUpDown,
+  Briefcase, Bookmark // Removed Activity, ArrowUpRight, ArrowDownLeft, Minus
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -28,12 +28,12 @@ interface HoldingsTableProps {
   holdings: PortfolioHolding[];
 }
 
-type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'priceSourceExchange' | 'newInvestmentAllocation' | 'quantityToBuyFromNewInvestment' | 'regularMarketChangePercent';
+type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'priceSourceExchange' | 'newInvestmentAllocation' | 'quantityToBuyFromNewInvestment'; // Removed 'regularMarketChangePercent'
 type SortDirection = 'asc' | 'desc';
 
 const formatLargeNumber = (value?: number): string => {
   if (value === undefined || value === null || isNaN(value)) return 'N/A';
-  return value.toLocaleString('en-US'); // Basic formatting with commas
+  return value.toLocaleString('en-US'); 
 };
 
 const formatRatio = (value?: number): string => {
@@ -43,7 +43,7 @@ const formatRatio = (value?: number): string => {
 
 const formatTer = (value?: number): string => {
   if (value === undefined || value === null || isNaN(value)) return 'N/A';
-  return `${(value * 100).toFixed(2)}%`; // TER is usually a raw decimal like 0.0025, display as 0.25%
+  return `${(value * 100).toFixed(2)}%`;
 }
 
 
@@ -73,10 +73,8 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
         if (sortKey === 'allocationDifference') {
           valA = Math.abs((a.allocationPercentage ?? 0) - (a.targetAllocationPercentage ?? 0));
           valB = Math.abs((b.allocationPercentage ?? 0) - (b.targetAllocationPercentage ?? 0));
-        } else if (sortKey === 'regularMarketChangePercent') {
-          valA = a.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity);
-          valB = b.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity);
         }
+        // Removed sorting for 'regularMarketChangePercent'
          else {
            valA = a[sortKey as keyof PortfolioHolding];
            valB = b[sortKey as keyof PortfolioHolding];
@@ -110,7 +108,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'name', label: 'Name', icon: <ListTree className="mr-1 h-4 w-4" /> },
     { key: 'quantity', label: 'Qty', icon: <Hash className="mr-1 h-4 w-4" /> },
     { key: 'currentPrice', label: 'Price (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
-    { key: 'regularMarketChangePercent', label: 'Day Change', icon: <Activity className="mr-1 h-4 w-4" /> },
+    // { key: 'regularMarketChangePercent', label: 'Day Change', icon: <Activity className="mr-1 h-4 w-4" /> }, // Removed Day Change header
     { key: 'priceSourceExchange', label: 'Exchange', icon: <Building2 className="mr-1 h-4 w-4" /> },
     { key: 'currentAmount', label: 'Value (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'allocationPercentage', label: 'Current Alloc.', icon: <PieChart className="mr-1 h-4 w-4" /> },
@@ -123,40 +121,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'isin', label: 'ISIN', icon: <Info className="mr-1 h-4 w-4" /> },
   ];
 
-  const renderDayChange = (holding: PortfolioHolding) => {
-    const change = holding.regularMarketChange;
-    const percentChange = holding.regularMarketChangePercent;
-
-    if (change === undefined || percentChange === undefined) {
-      return <span className="text-muted-foreground">N/A</span>;
-    }
-
-    const changeFormatted = formatCurrency(change, '').replace(/€/g, '').trim(); // Assuming change is in EUR
-    const percentChangeFormatted = `${percentChange.toFixed(2)}%`;
-
-    if (change > 0) {
-      return (
-        <span className="flex items-center justify-end text-green-600 dark:text-green-500">
-          <ArrowUpRight className="mr-1 h-3.5 w-3.5" />
-          {`+${changeFormatted} (${percentChangeFormatted})`}
-        </span>
-      );
-    }
-    if (change < 0) {
-      return (
-        <span className="flex items-center justify-end text-red-600 dark:text-red-500">
-          <ArrowDownLeft className="mr-1 h-3.5 w-3.5" />
-          {`${changeFormatted} (${percentChangeFormatted})`}
-        </span>
-      );
-    }
-    return (
-      <span className="flex items-center justify-end text-muted-foreground">
-        <Minus className="mr-1 h-3.5 w-3.5" />
-        {`0.00 (0.00%)`}
-      </span>
-    );
-  };
+  // renderDayChange function removed
 
   const renderPriceCell = (holding: PortfolioHolding) => {
     const priceDisplay = formatCurrency(holding.currentPrice);
@@ -185,7 +150,8 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                 <span>{formatLargeNumber(holding.regularMarketVolume)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center"><Activity className="mr-2 h-4 w-4" />Avg. Volume (10D)</span>
+                <span className="text-muted-foreground flex items-center"><BarChart3 className="mr-2 h-4 w-4" />Avg. Volume (10D)</span> 
+                {/* Changed icon to BarChart3 as Activity was removed from imports */}
                 <span>{formatLargeNumber(holding.averageDailyVolume10Day)}</span>
               </div>
               <div className="flex items-center justify-between">
@@ -285,7 +251,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                   <TableCell className="whitespace-nowrap">{renderNameCell(holding)}</TableCell>
                   <TableCell className="text-right">{holding.quantity}</TableCell>
                   <TableCell className="text-right">{renderPriceCell(holding)}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{renderDayChange(holding)}</TableCell>
+                  {/* Removed cell for Day Change */}
                   <TableCell className="text-center">{holding.priceSourceExchange || 'N/A'}</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(holding.currentAmount)}</TableCell>
                   <TableCell className="text-right">
