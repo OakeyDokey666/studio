@@ -33,7 +33,7 @@ export function DebugLogViewerDialog({ logs, isOpen, onOpenChange }: DebugLogVie
             Detailed logs from the last price refresh attempt. You can select and copy text from here.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-grow p-1 pr-6 -mr-2"> {/* Adjusted padding for scrollbar */}
+        <ScrollArea className="flex-grow p-1 pr-4"> {/* Ensure pr-4 for scrollbar space if needed */}
           <div className="space-y-4 p-4 bg-muted/50 rounded-md">
             {!hasLogs && <p className="text-muted-foreground">No debug logs available from the last refresh.</p>}
             {Object.entries(logs).map(([id, { name, logs: logArray }], index) => (
@@ -49,7 +49,7 @@ export function DebugLogViewerDialog({ logs, isOpen, onOpenChange }: DebugLogVie
             ))}
           </div>
         </ScrollArea>
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-4 pt-4 border-t"> {/* Added border for separation */}
           <DialogClose asChild>
             <Button type="button" variant="outline">
               Close
