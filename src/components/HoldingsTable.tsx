@@ -1,7 +1,8 @@
+
 'use client';
 
 import type { PortfolioHolding } from '@/types/portfolio';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   TableHeader,
@@ -25,8 +26,7 @@ interface HoldingsTableProps {
 type SortKey = keyof PortfolioHolding | 'allocationDifference';
 type SortDirection = 'asc' | 'desc';
 
-export function HoldingsTable({ holdings: initialHoldings }: HoldingsTableProps) {
-  const [holdings, setHoldings] = useState<PortfolioHolding[]>(initialHoldings);
+export function HoldingsTable({ holdings: data }: HoldingsTableProps) { // Renamed prop to 'data' for clarity or can use 'holdings' directly
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -41,7 +41,8 @@ export function HoldingsTable({ holdings: initialHoldings }: HoldingsTableProps)
   };
 
   const sortedAndFilteredHoldings = useMemo(() => {
-    let filtered = holdings.filter(holding =>
+    // Use the 'data' prop (which is the 'holdings' prop) directly here
+    let filtered = data.filter(holding =>
       holding.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       holding.isin.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -67,7 +68,7 @@ export function HoldingsTable({ holdings: initialHoldings }: HoldingsTableProps)
       });
     }
     return filtered;
-  }, [holdings, searchTerm, sortKey, sortDirection]);
+  }, [data, searchTerm, sortKey, sortDirection]); // Use 'data' (the prop) in dependency array
 
   const getDeviationSeverity = (current?: number, target?: number): 'low' | 'medium' | 'high' | 'none' => {
     if (current === undefined || target === undefined) return 'none';
