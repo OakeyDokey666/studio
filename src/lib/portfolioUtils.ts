@@ -39,7 +39,30 @@ export const calculatePortfolioMetrics = (
 
 export const formatCurrency = (value: number | undefined, currency: string = 'EUR'): string => {
   if (value === undefined || isNaN(value)) return 'N/A';
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: currency }).format(value);
+
+  // If an empty string is passed for currency, format as a decimal number
+  // This is to support cases where only the number format is needed without the symbol.
+  if (currency === '') {
+    return new Intl.NumberFormat('de-DE', {
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
+
+  // Default behavior: format as currency with the provided currency code
+  try {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: currency }).format(value);
+  } catch (e) {
+    // Fallback or error logging if currency code is still invalid for some reason
+    console.error(`Error formatting currency with code '${currency}':`, e);
+    // Fallback to formatting as a simple decimal, or return 'N/A' or the value itself
+    return new Intl.NumberFormat('de-DE', {
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value) + ` (Invalid Code: ${currency})`;
+  }
 };
 
 export const formatPercentage = (value: number | undefined): string => {
