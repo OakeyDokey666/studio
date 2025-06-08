@@ -20,11 +20,11 @@ interface InvestoTrackAppProps {
 
 const isinToTickerMap: Record<string, string> = {
   "FR0013412012": "PAASI.PA", // Amundi PEA MSCI Emerging Asia
-  "LU1812092168": "SEL.PA", // Amundi Stoxx Europe Select Dividend 30 (Corrected)
+  "LU1812092168": "SEL.PA", // Amundi Stoxx Europe Select Dividend 30
   "IE00B4K6B022": "50E.PA", // HSBC EURO STOXX 50 (Corrected)
   "IE00BZ4BMM98": "EUHD.PA", // Invesco EURO STOXX High Dividend Low Volatility
   "IE0002XZSHO1": "WPEA.PA", // iShares MSCI World Swap PEA
-  "IE00B5M1WJ87": "EUDV.PA" // SPDR S&P Euro Dividend Aristocrats (Corrected from .AS to .PA)
+  "IE00B5M1WJ87": "EUDV.PA" // SPDR S&P Euro Dividend Aristocrats
 };
 
 // Define a type for the structure stored in currentPricesMap
@@ -40,6 +40,8 @@ type PriceMapEntry = {
   epsTrailingTwelveMonths?: number;
   fiftyTwoWeekLow?: number;
   fiftyTwoWeekHigh?: number;
+  ter?: number;
+  fundSize?: number;
 };
 
 
@@ -72,6 +74,8 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       epsTrailingTwelveMonths: undefined,
       fiftyTwoWeekLow: undefined,
       fiftyTwoWeekHigh: undefined,
+      ter: undefined,
+      fundSize: undefined,
     }));
     setBaseHoldings(initialSetup);
   }, [initialData.holdings]);
@@ -103,6 +107,8 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         epsTrailingTwelveMonths: priceInfo?.epsTrailingTwelveMonths,
         fiftyTwoWeekLow: priceInfo?.fiftyTwoWeekLow,
         fiftyTwoWeekHigh: priceInfo?.fiftyTwoWeekHigh,
+        ter: priceInfo?.ter,
+        fundSize: priceInfo?.fundSize,
       };
     });
 
@@ -160,6 +166,8 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
             epsTrailingTwelveMonths: priceData.epsTrailingTwelveMonths,
             fiftyTwoWeekLow: priceData.fiftyTwoWeekLow,
             fiftyTwoWeekHigh: priceData.fiftyTwoWeekHigh,
+            ter: priceData.ter,
+            fundSize: priceData.fundSize,
           };
 
           if (priceData.currentPrice !== undefined && priceData.currency) {
@@ -287,4 +295,3 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     </div>
   );
 }
-

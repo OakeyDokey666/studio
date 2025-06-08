@@ -1,9 +1,9 @@
 
 'use server';
 /**
- * @fileOverview Fetches latest stock prices using Yahoo Finance.
+ * @fileOverview Fetches latest stock prices and basic ETF details using Yahoo Finance.
  *
- * - fetchStockPrices - A function that takes ISINs (and optional tickers) and returns current prices.
+ * - fetchStockPrices - A function that takes ISINs (and optional tickers) and returns current prices and details.
  * - FetchStockPricesInput - The input type for the fetchStockPrices function.
  * - FetchStockPricesOutput - The return type for the fetchStockPrices function.
  */
@@ -37,6 +37,8 @@ const StockPriceDataSchema = z.object({
   epsTrailingTwelveMonths: z.number().optional().describe('Earnings Per Share over the trailing twelve months.'),
   fiftyTwoWeekLow: z.number().optional().describe('The lowest price in the past 52 weeks.'),
   fiftyTwoWeekHigh: z.number().optional().describe('The highest price in the past 52 weeks.'),
+  ter: z.number().optional().describe('Total Expense Ratio (annual).'),
+  fundSize: z.number().optional().describe('Fund Size / Assets Under Management (AUM).'),
 });
 export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
 
@@ -49,7 +51,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   const euronextExchangeCodes = ['PAR', 'AMS', 'BRU', 'LIS', 'DUB', 'MCE', 'OSL']; // Paris, Amsterdam, Brussels, Lisbon, Dublin, Madrid, Oslo
   const baseReturnData = { id, isin, symbol: preferredTicker };
 
-  const extractQuoteData = (q: any) => ({
+  const extractQuoteData = (q: any): StockPriceData => ({
     id,
     isin,
     currentPrice: q.regularMarketPrice,
@@ -59,12 +61,14 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
     regularMarketChange: q.regularMarketChange,
     regularMarketChangePercent: q.regularMarketChangePercent,
     regularMarketVolume: q.regularMarketVolume,
-    averageDailyVolume10Day: q.averageDailyVolume10Day || q.averageDailyVolume3Month, // Fallback to 3Month if 10Day not available
+    averageDailyVolume10Day: q.averageDailyVolume10Day || q.averageDailyVolume3Month,
     marketCap: q.marketCap,
     trailingPE: q.trailingPE,
     epsTrailingTwelveMonths: q.epsTrailingTwelveMonths,
     fiftyTwoWeekLow: q.fiftyTwoWeekLow,
     fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
+    ter: q.fundProfile?.annualReportExpenseRatio?.raw ?? q.annualReportExpenseRatio?.raw, // TER from fundProfile or directly
+    fundSize: q.summaryDetail?.totalAssets?.raw ?? q.summaryProfile?.totalAssets?.raw, // AUM from summaryDetail or summaryProfile
   });
   
 
@@ -139,13 +143,13 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   }
   
   console.warn(`Could not find EUR price for ISIN ${isin} (ID: ${id}, Ticker: ${preferredTicker}) after all attempts. Best symbol found: ${quote?.symbol || 'N/A'}`);
-  return { 
+  // Return base data even if quote is partial or missing
+  const returnData: StockPriceData = { 
     ...baseReturnData,
     symbol: quote?.symbol || preferredTicker, 
     exchange: quote?.exchange,
     regularMarketChange: quote?.regularMarketChange,
     regularMarketChangePercent: quote?.regularMarketChangePercent,
-     // Return other fields as undefined if only partial data from quote
     regularMarketVolume: quote?.regularMarketVolume,
     averageDailyVolume10Day: quote?.averageDailyVolume10Day || quote?.averageDailyVolume3Month,
     marketCap: quote?.marketCap,
@@ -153,7 +157,10 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
     epsTrailingTwelveMonths: quote?.epsTrailingTwelveMonths,
     fiftyTwoWeekLow: quote?.fiftyTwoWeekLow,
     fiftyTwoWeekHigh: quote?.fiftyTwoWeekHigh,
+    ter: quote?.fundProfile?.annualReportExpenseRatio?.raw ?? quote?.annualReportExpenseRatio?.raw,
+    fundSize: quote?.summaryDetail?.totalAssets?.raw ?? quote?.summaryProfile?.totalAssets?.raw,
   };
+  return returnData;
 }
 
 
@@ -173,4 +180,3 @@ const fetchStockPricesFlow = ai.defineFlow(
     return results.filter(r => r !== null) as StockPriceData[];
   }
 );
-

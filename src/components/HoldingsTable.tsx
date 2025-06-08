@@ -18,7 +18,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { 
   ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, 
   Building2, Coins, PackagePlus, ArrowUpRight, ArrowDownLeft, Minus, Activity, BarChart3, 
-  DollarSign, DivideSquare, Sigma, ChevronsUpDown 
+  DollarSign, DivideSquare, Sigma, ChevronsUpDown, FileText, Layers, Shuffle, Briefcase
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -39,6 +39,11 @@ const formatLargeNumber = (value?: number): string => {
 const formatRatio = (value?: number): string => {
   if (value === undefined || value === null || isNaN(value)) return 'N/A';
   return value.toFixed(2);
+}
+
+const formatTer = (value?: number): string => {
+  if (value === undefined || value === null || isNaN(value)) return 'N/A';
+  return `${(value * 100).toFixed(2)}%`; // TER is usually a raw decimal like 0.0025, display as 0.25%
 }
 
 
@@ -126,7 +131,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
       return <span className="text-muted-foreground">N/A</span>;
     }
 
-    const changeFormatted = formatCurrency(change, '').replace(/€/g, '').trim();
+    const changeFormatted = formatCurrency(change, '').replace(/€/g, '').trim(); // Assuming change is in EUR
     const percentChangeFormatted = `${percentChange.toFixed(2)}%`;
 
     if (change > 0) {
@@ -169,7 +174,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
         <PopoverContent className="w-80">
           <div className="grid gap-4">
             <div className="space-y-2">
-              <h4 className="font-medium leading-none text-foreground">{holding.name} - Details</h4>
+              <h4 className="font-medium leading-none text-foreground">{holding.name} - Price Details</h4>
               <p className="text-sm text-muted-foreground">
                 Symbol: {holding.ticker || holding.isin} ({holding.priceSourceExchange || 'N/A'})
               </p>
@@ -200,6 +205,51 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                 <span className="text-right">
                   {formatCurrency(holding.fiftyTwoWeekLow)} - {formatCurrency(holding.fiftyTwoWeekHigh)}
                 </span>
+              </div>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
+  const renderNameCell = (holding: PortfolioHolding) => {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="link" className="p-0 h-auto font-medium text-current hover:text-primary text-left whitespace-normal">
+            {holding.name}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-96"> {/* Increased width for more info */}
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <h4 className="font-medium leading-none text-foreground">{holding.name} - Fund Details</h4>
+            </div>
+            <div className="grid gap-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><FileText className="mr-2 h-4 w-4" />ISIN</span>
+                <span className="font-mono">{holding.isin}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><Percent className="mr-2 h-4 w-4" />TER (Expense Ratio)</span>
+                <span>{formatTer(holding.ter)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><Briefcase className="mr-2 h-4 w-4" />Fund Size (AUM)</span>
+                <span>{formatCurrency(holding.fundSize, holding.fundSize ? 'EUR' : '')}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><Shuffle className="mr-2 h-4 w-4" />Distribution Policy</span>
+                <span>{holding.distributes || 'N/A (Check CSV)'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><Layers className="mr-2 h-4 w-4" />Replication Method</span>
+                <span className="italic">Not available via Yahoo. Add to CSV for details.</span>
+              </div>
+               <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><Landmark className="mr-2 h-4 w-4" />Asset Type</span>
+                <span>{holding.type}</span>
               </div>
             </div>
           </div>
@@ -244,7 +294,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
 
               return (
                 <TableRow key={holding.id} className={cn(rowClass, "transition-colors duration-150")}>
-                  <TableCell className="font-medium whitespace-nowrap">{holding.name}</TableCell>
+                  <TableCell className="whitespace-nowrap">{renderNameCell(holding)}</TableCell>
                   <TableCell className="text-right">{holding.quantity}</TableCell>
                   <TableCell className="text-right">{renderPriceCell(holding)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{renderDayChange(holding)}</TableCell>
@@ -287,4 +337,3 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     </div>
   );
 }
-

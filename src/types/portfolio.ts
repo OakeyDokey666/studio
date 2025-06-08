@@ -31,6 +31,12 @@ export interface PortfolioHolding {
   epsTrailingTwelveMonths?: number;
   fiftyTwoWeekLow?: number;
   fiftyTwoWeekHigh?: number;
+
+  // ETF specific details
+  ter?: number; // Total Expense Ratio
+  fundSize?: number; // Assets Under Management (AUM)
+  // replicationMethod?: string; // Best added via CSV
+  // distributionPolicy?: string; // Detailed policy, existing 'distributes' for months
 }
 
 export interface ParsedCsvData {
@@ -40,4 +46,3 @@ export interface ParsedCsvData {
 }
 
 export type RoundingOption = 'up' | 'down' | 'classic';
-
