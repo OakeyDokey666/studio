@@ -11,7 +11,6 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 
 interface DebugLogViewerDialogProps {
@@ -28,7 +27,6 @@ export function DebugLogViewerDialog({ logs, isOpen, onOpenChange }: DebugLogVie
     allLogsString = Object.entries(logs)
       .map(([id, { name, logs: logArray }]) => {
         const holdingName = name || 'Unknown Holding';
-        // Use id (which is ISIN) for a more stable identifier if name is missing
         const holdingIdentifier = `${holdingName} (ID: ${id})`; 
         return `--- ${holdingIdentifier} ---\n${logArray.join('\n')}\n\n`;
       })
@@ -46,15 +44,14 @@ export function DebugLogViewerDialog({ logs, isOpen, onOpenChange }: DebugLogVie
             Detailed logs from the last price refresh attempt. You can select and copy text from here.
           </DialogDescription>
         </DialogHeader>
-        {/* Wrapper div to control flex-grow and provide context for ScrollArea height */}
-        <div className="flex-grow min-h-0 overflow-hidden py-2"> 
-          <ScrollArea className="h-full w-full rounded-md border p-2 bg-muted/30">
-            <pre className="text-xs whitespace-pre-wrap p-2">
-              {allLogsString}
-            </pre>
-          </ScrollArea>
+        
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 my-4 border rounded-md bg-muted/30">
+          <pre className="text-xs whitespace-pre-wrap">
+            {allLogsString}
+          </pre>
         </div>
-        <DialogFooter className="mt-4 pt-4 border-t">
+        
+        <DialogFooter className="mt-auto pt-4 border-t">
           <DialogClose asChild>
             <Button type="button" variant="outline">
               Close
