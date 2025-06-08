@@ -18,14 +18,15 @@ interface InvestoTrackAppProps {
   initialData: ParsedCsvData;
 }
 
-// ISIN to Ticker mapping based on user input
+// ISIN to Ticker mapping, prioritizing Euronext as per user's note
 const isinToTickerMap: Record<string, string> = {
-  "FR0013412012": "PAASI.PA", // Assuming .PA for Euronext Paris
-  "LU1812092168": "SEL.AS",  // Assuming .AS for Euronext Amsterdam
-  "IE00B4K6B022": "E50E.DE", // Assuming .DE for XETRA or a major German exchange for Euro Stoxx 50
-  "IE00BZ4BMM98": "EUHD.DE", // Assuming .DE
-  "IE0002XZSHO1": "WPEA.MI", // Assuming .MI for Borsa Italiana or a relevant exchange for World PEA
-  "IE00B5M1WJ87": "EUDV.AS"  // Assuming .AS for Euronext Amsterdam
+  "FR0013412012": "PAASI.PA", // Amundi PEA MSCI Emerging Asia ESG Leaders (Euronext Paris)
+  "LU1812092168": "SEL.AS",    // Amundi Stoxx Europe Select Dividend 30 (Euronext Amsterdam)
+  "IE00B4K6B022": "E50E.PA",  // HSBC EURO STOXX 50 UCITS ETF EUR (Euronext Paris, was .DE)
+  "IE00BZ4BMM98": "EUHD.PA",  // Invesco EURO STOXX High Dividend Low Volatility (Euronext Paris, was .DE)
+  "IE0002XZSHO1": "WPEA.PA",  // iShares MSCI World Swap PEA UCITS ETF EUR (Euronext Paris, was .MI)
+  "IE00B5M1WJ87": "EUDV.AS"   // SPDR S&P Euro Dividend Aristocrats (Euronext Amsterdam)
+  // FR0011871110 (PUST) is not in the initial portfolioContent.ts, so not mapped here.
 };
 
 
@@ -89,12 +90,12 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               ...holding,
               currentPrice: priceData.currentPrice,
               currentAmount: holding.quantity * priceData.currentPrice,
-              // Potentially update ticker if a more accurate one was found by Yahoo
+              // Update ticker if a more accurate one was found by Yahoo and used
               ticker: priceData.symbol || holding.ticker, 
             };
           } else {
             // Price or currency not found for this holding
-            notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${holding.ticker || 'N/A'}).`);
+            notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${priceData.symbol || holding.ticker || 'N/A'}).`);
           }
         }
         return holding;
@@ -106,7 +107,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       if (pricesUpdatedCount > 0) {
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
       } else {
-         toast({ title: "Prices Checked", description: "No EUR prices were updated. They might be current or not found." });
+         toast({ title: "Prices Checked", description: "No EUR prices were updated. They might be current or not found by Yahoo Finance." });
       }
 
       if (nonEurCurrencyWarnings.length > 0) {
@@ -129,7 +130,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               {notFoundWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
             </ul>
           ),
-          variant: "default",
+          variant: "default", // Changed to default as it's a common occurrence
           duration: 10000,
         });
       }

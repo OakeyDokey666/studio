@@ -36,6 +36,7 @@ export type FetchStockPricesOutput = z.infer<typeof FetchStockPricesOutputSchema
 
 async function getPriceForIsin(isin: string, id: string, preferredTicker?: string): Promise<StockPriceData> {
   let quote;
+  const euronextExchangeCodes = ['PAR', 'AMS', 'BRU', 'LIS', 'DUB', 'MCE', 'OSL']; // Paris, Amsterdam, Brussels, Lisbon, Dublin, Madrid, Oslo
 
   // Attempt 0: Use preferredTicker if provided
   if (preferredTicker) {
@@ -47,7 +48,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
           isin,
           currentPrice: quote.regularMarketPrice,
           currency: quote.currency,
-          symbol: quote.symbol || preferredTicker, // Use the symbol from quote if available, else the preferredTicker
+          symbol: quote.symbol || preferredTicker,
         };
       }
     } catch (error) {
@@ -75,18 +76,33 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   try {
     const searchResults = await yahooFinance.search(isin);
     if (searchResults.quotes && searchResults.quotes.length > 0) {
-      let bestMatch = searchResults.quotes.find(q => q.isin === isin && q.exchange?.toUpperCase().includes('EUR') && q.currency?.toUpperCase() === 'EUR');
+      let bestMatch;
+
+      // Priority 1: ISIN match, Euronext exchange, EUR currency
+      bestMatch = searchResults.quotes.find(q =>
+        q.isin === isin &&
+        q.currency?.toUpperCase() === 'EUR' &&
+        euronextExchangeCodes.some(exCode => q.exchange?.toUpperCase() === exCode)
+      );
+
+      // Priority 2: ISIN match, any exchange, EUR currency
       if (!bestMatch) {
         bestMatch = searchResults.quotes.find(q => q.isin === isin && q.currency?.toUpperCase() === 'EUR');
       }
+      
+      // Priority 3: ISIN match, preferredTicker symbol (if initial direct quote failed)
+      if (!bestMatch && preferredTicker) {
+        bestMatch = searchResults.quotes.find(q => q.symbol === preferredTicker && q.isin === isin);
+      }
+      
+      // Priority 4: ISIN match, any exchange (fallback if EUR not found)
       if (!bestMatch) {
         bestMatch = searchResults.quotes.find(q => q.isin === isin);
       }
-      if (!bestMatch && preferredTicker) { // If preferred ticker failed, and ISIN direct quote failed, try finding preferred ticker in search results
-         bestMatch = searchResults.quotes.find(q => q.symbol === preferredTicker);
-      }
-      if (!bestMatch) {
-        bestMatch = searchResults.quotes[0]; 
+      
+      // Priority 5: First quote if still no specific match (less ideal)
+      if (!bestMatch && searchResults.quotes.length > 0) {
+        bestMatch = searchResults.quotes[0];
       }
       
       if (bestMatch && bestMatch.symbol) {
