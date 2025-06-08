@@ -44,24 +44,28 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
     try {
       quote = await yahooFinance.quote(preferredTicker);
       if (quote && quote.regularMarketPrice && quote.currency) {
-        return {
-          id,
-          isin,
-          currentPrice: quote.regularMarketPrice,
-          currency: quote.currency,
-          symbol: quote.symbol || preferredTicker,
-          exchange: quote.exchange,
-        };
+        if (quote.currency.toUpperCase() === 'EUR') {
+          return {
+            id,
+            isin,
+            currentPrice: quote.regularMarketPrice,
+            currency: quote.currency,
+            symbol: quote.symbol || preferredTicker,
+            exchange: quote.exchange,
+          };
+        } else {
+          console.warn(`Preferred ticker ${preferredTicker} for ISIN ${isin} (ID: ${id}) found price in ${quote.currency}, not EUR. Falling back to ISIN search.`);
+        }
       }
     } catch (error) {
-      console.warn(`Failed to fetch price for preferred ticker ${preferredTicker} (ISIN: ${isin}, ID: ${id}). Error: ${error instanceof Error ? error.message : String(error)}. Falling back to other methods.`);
+      console.warn(`Failed to fetch price for preferred ticker ${preferredTicker} (ISIN: ${isin}, ID: ${id}). Error: ${error instanceof Error ? error.message : String(error)}. Falling back to ISIN search.`);
     }
   }
 
   // Attempt 1: Directly use ISIN as symbol (works for some major exchanges)
   try {
     quote = await yahooFinance.quote(isin);
-    if (quote && quote.regularMarketPrice && quote.currency) {
+    if (quote && quote.regularMarketPrice && quote.currency && quote.currency.toUpperCase() === 'EUR') {
       return {
         id,
         isin,
@@ -72,7 +76,7 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
       };
     }
   } catch (error) {
-     // console.warn(`Direct quote with ISIN ${isin} failed. Will try searching.`);
+     // console.warn(`Direct quote with ISIN ${isin} failed or not in EUR. Will try searching.`);
   }
 
   // Attempt 2: Search by ISIN to get a ticker symbol
@@ -88,29 +92,37 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         euronextExchangeCodes.some(exCode => q.exchange?.toUpperCase() === exCode)
       );
 
-      // Priority 2: ISIN match, any exchange, EUR currency
+      // Priority 2: ISIN match, any other exchange, EUR currency
       if (!bestMatch) {
         bestMatch = searchResults.quotes.find(q => q.isin === isin && q.currency?.toUpperCase() === 'EUR');
       }
       
-      // Priority 3: ISIN match, preferredTicker symbol (if initial direct quote failed)
+      // Priority 3: ISIN match, preferredTicker symbol AND EUR currency (if initial direct quote failed or was non-EUR)
       if (!bestMatch && preferredTicker) {
-        bestMatch = searchResults.quotes.find(q => q.symbol === preferredTicker && q.isin === isin);
+        bestMatch = searchResults.quotes.find(q => q.symbol === preferredTicker && q.isin === isin && q.currency?.toUpperCase() === 'EUR');
       }
       
-      // Priority 4: ISIN match, any exchange (fallback if EUR not found)
+      // Priority 4: ISIN match, any exchange but still EUR (redundant with P2 but safe)
       if (!bestMatch) {
+        bestMatch = searchResults.quotes.find(q => q.isin === isin && q.currency?.toUpperCase() === 'EUR');
+      }
+      
+      // Priority 5: If still no EUR match, take the first ISIN match with a price (might be non-EUR, app layer will handle it)
+      if (!bestMatch) {
+        bestMatch = searchResults.quotes.find(q => q.isin === isin && q.regularMarketPrice && q.currency);
+      }
+
+      // Priority 6: Fallback to first quote with ISIN match if absolutely no price found earlier
+      if (!bestMatch && !preferredTicker) { // Only if no preferred ticker was involved in earlier non-EUR issues
         bestMatch = searchResults.quotes.find(q => q.isin === isin);
       }
-      
-      // Priority 5: First quote if still no specific match (less ideal)
-      if (!bestMatch && searchResults.quotes.length > 0) {
-        bestMatch = searchResults.quotes[0];
-      }
-      
+
+
       if (bestMatch && bestMatch.symbol) {
+        // Refetch using the bestMatch symbol to ensure full quote data
         quote = await yahooFinance.quote(bestMatch.symbol);
         if (quote && quote.regularMarketPrice && quote.currency) {
+           // We trust this quote now as it came from a prioritized search for EUR
           return {
             id,
             isin,
@@ -126,8 +138,8 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
      console.error(`Error during search or quote for ISIN ${isin} (ID: ${id}):`, error);
   }
   
-  console.warn(`Could not find price for ISIN ${isin} (ID: ${id}, Ticker: ${preferredTicker}) after all attempts.`);
-  return { id, isin, symbol: preferredTicker }; // Return without price if not found
+  console.warn(`Could not find EUR price for ISIN ${isin} (ID: ${id}, Ticker: ${preferredTicker}) after all attempts. Best symbol found: ${quote?.symbol || 'N/A'}`);
+  return { id, isin, symbol: preferredTicker || quote?.symbol, exchange: quote?.exchange }; // Return without price if not found or not EUR
 }
 
 
@@ -144,6 +156,8 @@ const fetchStockPricesFlow = ai.defineFlow(
   async (assets) => {
     const pricePromises = assets.map(asset => getPriceForIsin(asset.isin, asset.id, asset.ticker));
     const results = await Promise.all(pricePromises);
+    // The app layer (InvestoTrackApp.tsx) will handle filtering for EUR if necessary
     return results.filter(r => r !== null) as StockPriceData[];
   }
 );
+
