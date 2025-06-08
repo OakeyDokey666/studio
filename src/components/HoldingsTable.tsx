@@ -17,8 +17,8 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
 import {
   ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard,
-  Building2, Coins, PackagePlus, Bookmark, Briefcase
-} from 'lucide-react'; // Removed unused icons
+  Building2, Coins, PackagePlus, Bookmark, Briefcase, TrendingUp, TrendingDown
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,7 +27,7 @@ interface HoldingsTableProps {
   holdings: PortfolioHolding[];
 }
 
-type SortKey = keyof PortfolioHolding | 'allocationDifference'; // Removed 'regularMarketChangePercent'
+type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'regularMarketChangePercent';
 type SortDirection = 'asc' | 'desc';
 
 export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
@@ -56,6 +56,9 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
         if (sortKey === 'allocationDifference') {
           valA = Math.abs((a.allocationPercentage ?? 0) - (a.targetAllocationPercentage ?? 0));
           valB = Math.abs((b.allocationPercentage ?? 0) - (b.targetAllocationPercentage ?? 0));
+        } else if (sortKey === 'regularMarketChangePercent') {
+          valA = a.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity); // Handle undefined for sorting
+          valB = b.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity);
         }
         else {
            valA = a[sortKey as keyof PortfolioHolding];
@@ -90,6 +93,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'name', label: 'Name', icon: <ListTree className="mr-1 h-4 w-4" /> },
     { key: 'quantity', label: 'Qty', icon: <Hash className="mr-1 h-4 w-4" /> },
     { key: 'currentPrice', label: 'Price (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
+    { key: 'regularMarketChangePercent', label: 'Day Change %', icon: <TrendingUp className="mr-1 h-4 w-4" /> },
     { key: 'priceSourceExchange', label: 'Exchange', icon: <Building2 className="mr-1 h-4 w-4" /> },
     { key: 'currentAmount', label: 'Value (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'allocationPercentage', label: 'Current Alloc.', icon: <PieChart className="mr-1 h-4 w-4" /> },
@@ -98,16 +102,41 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'quantityToBuyFromNewInvestment', label: 'Qty to Buy (New Inv.)', icon: <PackagePlus className="mr-1 h-4 w-4" /> },
     { key: 'objective', label: 'Objective', icon: <Edit3 className="mr-1 h-4 w-4" />},
     { key: 'type', label: 'Type', icon: <Landmark className="mr-1 h-4 w-4" /> },
-    { key: 'potentialIncome', label: 'Income', icon: <Percent className="mr-1 h-4 w-4" /> }, // Assuming this means dividend yield string
+    { key: 'potentialIncome', label: 'Income', icon: <Percent className="mr-1 h-4 w-4" /> },
     { key: 'isin', label: 'ISIN', icon: <Info className="mr-1 h-4 w-4" /> },
   ];
 
   const renderPriceCell = (holding: PortfolioHolding) => {
     const priceDisplay = formatCurrency(holding.currentPrice);
-    // Simple price display, no popover for this rollback
     return holding.currentPrice === undefined
       ? <span className="text-muted-foreground">{priceDisplay}</span>
       : <span className="text-right">{priceDisplay}</span>;
+  };
+
+  const renderDayChangeCell = (holding: PortfolioHolding) => {
+    const change = holding.regularMarketChange;
+    const changePercent = holding.regularMarketChangePercent;
+
+    if (change === undefined || changePercent === undefined) {
+      return <span className="text-muted-foreground">N/A</span>;
+    }
+
+    const isPositive = change > 0;
+    const isNegative = change < 0;
+    const colorClass = cn({
+      'text-emerald-600 dark:text-emerald-500': isPositive,
+      'text-destructive': isNegative,
+      // Default text color if not positive or negative (e.g. zero change)
+    });
+
+    const Icon = isPositive ? TrendingUp : isNegative ? TrendingDown : null;
+
+    return (
+      <span className={cn('flex items-center justify-end space-x-1', colorClass)}>
+        {Icon && <Icon className="h-4 w-4" />}
+        <span>{formatPercentage(changePercent * 100)}</span>
+      </span>
+    );
   };
 
   const renderNameCell = (holding: PortfolioHolding) => {
@@ -180,6 +209,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                   <TableCell className="whitespace-nowrap">{renderNameCell(holding)}</TableCell>
                   <TableCell className="text-right">{holding.quantity}</TableCell>
                   <TableCell className="text-right">{renderPriceCell(holding)}</TableCell>
+                  <TableCell className="text-right">{renderDayChangeCell(holding)}</TableCell>
                   <TableCell className="text-center">{holding.priceSourceExchange || 'N/A'}</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(holding.currentAmount)}</TableCell>
                   <TableCell className="text-right">

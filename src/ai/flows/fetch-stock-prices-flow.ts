@@ -36,18 +36,21 @@ const StockPriceDataSchema = z.object({
   ter: z.number().optional().describe('Total Expense Ratio for ETFs.'),
   fundSize: z.number().optional().describe('Fund size (AUM) for ETFs.'),
   categoryName: z.string().optional().describe('Fund category for ETFs.'),
+  // For Day Change
+  regularMarketChange: z.number().optional().describe('The change in market price since the previous close.'),
+  regularMarketChangePercent: z.number().optional().describe('The percentage change in market price since the previous close.'),
+  regularMarketPreviousClose: z.number().optional().describe('The previous closing price of the asset.'),
   debugLogs: z.array(z.string()).optional().describe('Debug logs for price fetching process.'),
 });
 export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
 
-const FetchStockPricesOutputSchema = z.array(StockPriceDataSchema); // Correctly defined
+const FetchStockPricesOutputSchema = z.array(StockPriceDataSchema);
 export type FetchStockPricesOutput = z.infer<typeof FetchStockPricesOutputSchema>;
 
 
-// queryOptions will be constructed directly in the quote call.
-// const queryOptions: QuoteNodeQueryOptions = {
-//   modules: ['price', 'fundProfile', 'summaryDetail'],
-// };
+const queryOptions: QuoteNodeQueryOptions = {
+  modules: ['price', 'fundProfile', 'summaryDetail'],
+};
 
 
 function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string, debugLogs: string[]): Partial<StockPriceData> {
@@ -57,7 +60,6 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
   }
   debugLogs.push(`extractDataFromQuote: Processing quote for ISIN ${isin}, Symbol ${quote.symbol}`);
 
-  // Enhanced logging for fundProfile and summaryDetail
   debugLogs.push(`  Raw quote.fundProfile exists: ${quote.fundProfile ? 'Yes' : 'No'}`);
   if (quote.fundProfile) {
     debugLogs.push(`    fundProfile.annualReportExpenseRatio (raw object): ${JSON.stringify(quote.fundProfile.annualReportExpenseRatio)}`);
@@ -78,6 +80,10 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
   } else {
     debugLogs.push(`    summaryDetail details not available.`);
   }
+  
+  debugLogs.push(`  Raw quote.regularMarketChange: ${quote.regularMarketChange}`);
+  debugLogs.push(`  Raw quote.regularMarketChangePercent: ${quote.regularMarketChangePercent}`);
+  debugLogs.push(`  Raw quote.regularMarketPreviousClose: ${quote.regularMarketPreviousClose}`);
 
   const data: Partial<StockPriceData> = {
     id,
@@ -89,8 +95,11 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
     ter: quote.fundProfile?.annualReportExpenseRatio?.raw ?? quote.summaryDetail?.expenseRatio?.raw,
     fundSize: quote.fundProfile?.totalAssets?.raw ?? quote.summaryDetail?.totalAssets?.raw,
     categoryName: quote.fundProfile?.categoryName,
+    regularMarketChange: quote.regularMarketChange,
+    regularMarketChangePercent: quote.regularMarketChangePercent,
+    regularMarketPreviousClose: quote.regularMarketPreviousClose,
   };
-  debugLogs.push(`extractDataFromQuote: Extracted Price: ${data.currentPrice}, Currency: ${data.currency}, Symbol: ${data.symbol}, Exchange: ${data.exchange}. TER: ${data.ter}, FundSize: ${data.fundSize}, Category: ${data.categoryName}`);
+  debugLogs.push(`extractDataFromQuote: Extracted Price: ${data.currentPrice}, Currency: ${data.currency}, Symbol: ${data.symbol}, Exchange: ${data.exchange}. TER: ${data.ter}, FundSize: ${data.fundSize}, Category: ${data.categoryName}, Change: ${data.regularMarketChange}, Change %: ${data.regularMarketChangePercent}`);
   return data;
 }
 
@@ -101,13 +110,14 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   let finalQuoteForExtraction: Quote | undefined = undefined;
   let eurPriceFound = false;
-  const modulesToFetch: QuoteNodeQueryOptions = { modules: ['price', 'fundProfile', 'summaryDetail'] };
+  
+  debugLogs.push(`  Using queryOptions with modules: ${queryOptions.modules?.join(', ') || 'none specified'}`);
 
   // Attempt 0: Preferred Ticker
   if (preferredTicker) {
-    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} with modules: ${modulesToFetch.modules?.join(', ') || 'none'}`);
+    debugLogs.push(`Attempt 0: Fetching preferred ticker ${preferredTicker} with modules: ${queryOptions.modules?.join(', ') || 'none'}`);
     try {
-      const quote = await yahooFinance.quote(preferredTicker, modulesToFetch);
+      const quote = await yahooFinance.quote(preferredTicker, {}, queryOptions);
       debugLogs.push(`Attempt 0: ${preferredTicker} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
       if (quote?.regularMarketPrice !== undefined && quote.currency?.toUpperCase() === 'EUR') {
         debugLogs.push(`Attempt 0: EUR price found for ${preferredTicker}.`);
@@ -128,9 +138,9 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
 
   // Attempt 1: ISIN as Symbol (if EUR price not found yet)
   if (!eurPriceFound) {
-    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} with modules: ${modulesToFetch.modules?.join(', ') || 'none'}`);
+    debugLogs.push(`Attempt 1: Fetching ISIN as symbol ${isin} with modules: ${queryOptions.modules?.join(', ') || 'none'}`);
     try {
-      const quote = await yahooFinance.quote(isin, modulesToFetch);
+      const quote = await yahooFinance.quote(isin, {}, queryOptions);
       debugLogs.push(`Attempt 1: ${isin} quote received - Price: ${quote?.regularMarketPrice}, Currency: ${quote?.currency}, Symbol: ${quote?.symbol}, Exchange: ${quote?.exchange}`);
       if (quote?.regularMarketPrice !== undefined && quote.currency?.toUpperCase() === 'EUR') {
         debugLogs.push(`Attempt 1: EUR price found for ISIN ${isin}.`);
@@ -165,8 +175,8 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         });
 
         if (foundSearchQuote?.symbol) {
-          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote with modules: ${modulesToFetch.modules?.join(', ') || 'none'}.`);
-          const quoteFromSearchSymbol = await yahooFinance.quote(foundSearchQuote.symbol, modulesToFetch);
+          debugLogs.push(`Attempt 2: Found potential EUR match in search: ${foundSearchQuote.symbol} (Exchange in search: ${foundSearchQuote.exchDisp}). Fetching its full quote with modules: ${queryOptions.modules?.join(', ') || 'none'}.`);
+          const quoteFromSearchSymbol = await yahooFinance.quote(foundSearchQuote.symbol, {}, queryOptions);
           debugLogs.push(`Attempt 2: Full quote for ${foundSearchQuote.symbol} received - Price: ${quoteFromSearchSymbol?.regularMarketPrice}, Currency: ${quoteFromSearchSymbol?.currency}, Symbol: ${quoteFromSearchSymbol?.symbol}, Exchange: ${quoteFromSearchSymbol?.exchange}`);
           if (quoteFromSearchSymbol?.regularMarketPrice !== undefined && quoteFromSearchSymbol.currency?.toUpperCase() === 'EUR') {
             debugLogs.push(`Attempt 2: EUR price confirmed for searched symbol ${foundSearchQuote.symbol}.`);
@@ -217,6 +227,9 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         ter: undefined,
         fundSize: undefined,
         categoryName: undefined,
+        regularMarketChange: undefined,
+        regularMarketChangePercent: undefined,
+        regularMarketPreviousClose: undefined,
     };
   }
   resultData.debugLogs = debugLogs;
@@ -238,7 +251,7 @@ const fetchStockPricesFlow = ai.defineFlow(
     console.log("[fetchStockPricesFlow RB] Starting flow for assets:", assets.map(a => a.isin));
     const pricePromises = assets.map(asset => getPriceForIsin(asset.isin, asset.id, asset.ticker));
     const results = await Promise.all(pricePromises);
-    console.log("[fetchStockPricesFlow RB] Results from getPriceForIsin (summary):", results.map(r => ({isin: r.isin, price: r.currentPrice, currency: r.currency, ter: r.ter, fundSize: r.fundSize, category: r.categoryName, logsCount: r.debugLogs?.length || 0 })));
+    console.log("[fetchStockPricesFlow RB] Results from getPriceForIsin (summary):", results.map(r => ({isin: r.isin, price: r.currentPrice, currency: r.currency, ter: r.ter, fundSize: r.fundSize, category: r.categoryName, changePercent: r.regularMarketChangePercent, logsCount: r.debugLogs?.length || 0 })));
     return results.filter(r => r !== null) as FetchStockPricesOutput;
   }
 );

@@ -24,6 +24,11 @@ export interface PortfolioHolding {
   fundSize?: number; // Assets Under Management
   categoryName?: string;
 
+  // Fields for day change
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  regularMarketPreviousClose?: number;
+
   // Fields for new investment calculation (dependent on currentPrice)
   newInvestmentAllocation?: number;
   quantityToBuyFromNewInvestment?: number;

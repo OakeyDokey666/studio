@@ -35,6 +35,9 @@ type PriceMapEntry = {
   ter?: number;
   fundSize?: number;
   categoryName?: string;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  regularMarketPreviousClose?: number;
   debugLogs?: string[];
 };
 
@@ -66,6 +69,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       ter: undefined,
       fundSize: undefined,
       categoryName: undefined,
+      regularMarketChange: undefined,
+      regularMarketChangePercent: undefined,
+      regularMarketPreviousClose: undefined,
       debugLogs: undefined,
     }));
     setBaseHoldings(initialSetup);
@@ -89,6 +95,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         ter: priceInfo?.ter,
         fundSize: priceInfo?.fundSize,
         categoryName: priceInfo?.categoryName,
+        regularMarketChange: priceInfo?.regularMarketChange,
+        regularMarketChangePercent: priceInfo?.regularMarketChangePercent,
+        regularMarketPreviousClose: priceInfo?.regularMarketPreviousClose,
         debugLogs: priceInfo?.debugLogs,
       };
     });
@@ -128,7 +137,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       }
 
       const fetchedPricesData: StockPriceData[] = await fetchStockPrices(assetsToFetch);
-      console.log("[InvestoTrackApp RB] Fetched prices raw data from flow (summary):", fetchedPricesData.map(p => ({isin: p.isin, price: p.currentPrice, logs: p.debugLogs?.length || 0})));
+      console.log("[InvestoTrackApp RB] Fetched prices raw data from flow (summary):", fetchedPricesData.map(p => ({isin: p.isin, price: p.currentPrice, logs: p.debugLogs?.length || 0, change: p.regularMarketChangePercent })));
 
       let pricesUpdatedCount = 0;
       let notFoundWarnings: string[] = [];
@@ -148,6 +157,9 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
             ter: priceData.ter,
             fundSize: priceData.fundSize,
             categoryName: priceData.categoryName,
+            regularMarketChange: priceData.regularMarketChange,
+            regularMarketChangePercent: priceData.regularMarketChangePercent,
+            regularMarketPreviousClose: priceData.regularMarketPreviousClose,
             debugLogs: priceData.debugLogs,
           };
 
