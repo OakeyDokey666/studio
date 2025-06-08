@@ -3,21 +3,23 @@ export interface PortfolioHolding {
   id: string; // ISIN
   name: string;
   quantity: number;
-  currentPrice: number;
-  currentAmount: number;
+  currentPrice: number; // Should be initially undefined, then fetched
+  currentAmount: number; // Should be initially undefined, then calculated
   objective: string;
   type: string;
   potentialIncome: string;
   allocationPercentage?: number; // Current allocation, calculated
   targetBuyAmount: number;
   buyPrice?: number;
-  qtyToBuy?: number;
+  qtyToBuy?: number; // From CSV
   actualGrosAmount?: number;
   isin: string;
   distributes?: string;
   targetAllocationPercentage?: number; // Target allocation, calculated from targetBuyAmount
   ticker?: string; // Optional ticker symbol
   priceSourceExchange?: string; // Exchange from which the current price was sourced
+  newInvestmentAllocation?: number; // Calculated: newInvestmentAmount * targetAllocationPercentage
+  quantityToBuyFromNewInvestment?: number; // Calculated: newInvestmentAllocation / currentPrice, then rounded
 }
 
 export interface ParsedCsvData {
@@ -25,3 +27,5 @@ export interface ParsedCsvData {
   initialNewInvestmentAmount?: number;
   csvErrors?: string[];
 }
+
+export type RoundingOption = 'up' | 'down' | 'classic';

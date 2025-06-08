@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { PortfolioHolding, ParsedCsvData } from '@/types/portfolio';
+import type { PortfolioHolding, ParsedCsvData, RoundingOption } from '@/types/portfolio';
 import type { FetchStockPricesInput, StockPriceData } from '@/ai/flows/fetch-stock-prices-flow';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppHeader } from '@/components/AppHeader';
@@ -18,42 +18,65 @@ interface InvestoTrackAppProps {
   initialData: ParsedCsvData;
 }
 
-// ISIN to Ticker mapping, prioritizing Euronext
 const isinToTickerMap: Record<string, string> = {
-  "FR0013412012": "PAASI.PA", // Amundi PEA MSCI Emerging Asia ESG Leaders (Euronext Paris)
-  "LU1812092168": "SEL.PA",  // Amundi Stoxx Europe Select Dividend 30 (Euronext Paris) - Corrected
-  "IE00B4K6B022": "50E.PA",   // HSBC EURO STOXX 50 UCITS ETF EUR (Euronext Paris) - Corrected
-  "IE00BZ4BMM98": "EUHD.PA",  // Invesco EURO STOXX High Dividend Low Volatility (Euronext Paris)
-  "IE0002XZSHO1": "WPEA.PA",  // iShares MSCI World Swap PEA UCITS ETF EUR (Euronext Paris)
-  "IE00B5M1WJ87": "EUDV.PA"   // SPDR S&P Euro Dividend Aristocrats (Euronext Paris) - Corrected
+  "FR0013412012": "PAASI.PA", 
+  "LU1812092168": "SEL.PA",  
+  "IE00B4K6B022": "50E.PA",   
+  "IE00BZ4BMM98": "EUHD.PA", 
+  "IE0002XZSHO1": "WPEA.PA", 
+  "IE00B5M1WJ87": "EUDV.PA"   
 };
-
 
 export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const [portfolioHoldings, setPortfolioHoldings] = useState<PortfolioHolding[]>([]);
   const [newInvestmentAmount, setNewInvestmentAmount] = useState<number | undefined>(initialData.initialNewInvestmentAmount);
+  const [roundingOption, setRoundingOption] = useState<RoundingOption>('classic');
   const [csvErrors, setCsvErrors] = useState<string[]>(initialData.csvErrors || []);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [pricesLastUpdated, setPricesLastUpdated] = useState<Date | null>(null);
   const { toast } = useToast();
   const initialRefreshDoneRef = useRef(false);
+  const [currentPricesMap, setCurrentPricesMap] = useState<Map<string, {price: number, exchange?: string}>>(new Map());
 
-  const processHoldings = useCallback((holdingsToProcess: PortfolioHolding[]) => {
-    const metricsApplied = calculatePortfolioMetrics(holdingsToProcess);
+  const processAndSetHoldings = useCallback((
+    holdingsToProcess: PortfolioHolding[],
+    currentNewInvestmentAmount?: number,
+    currentRoundingOption?: RoundingOption,
+    pricesMap?: Map<string, {price: number, exchange?: string}>
+  ) => {
+    const holdingsWithPrices = holdingsToProcess.map(h => {
+      const priceInfo = pricesMap?.get(h.id);
+      return {
+        ...h,
+        currentPrice: priceInfo?.price ?? h.currentPrice, // Use map price if available, else keep existing
+        currentAmount: priceInfo?.price !== undefined ? h.quantity * priceInfo.price : h.currentAmount,
+        priceSourceExchange: priceInfo?.exchange ?? h.priceSourceExchange,
+      };
+    });
+    const metricsApplied = calculatePortfolioMetrics(holdingsWithPrices, currentNewInvestmentAmount, currentRoundingOption);
     setPortfolioHoldings(metricsApplied);
   }, []);
 
+
   useEffect(() => {
-    // Initialize holdings with undefined prices/amounts until fetched
     const holdingsWithInitialSetup = initialData.holdings.map(h => ({
         ...h,
         ticker: h.ticker || isinToTickerMap[h.isin] || undefined,
-        currentPrice: undefined, // Start with undefined price
-        currentAmount: undefined,  // Start with undefined amount
-        priceSourceExchange: undefined, // Start with undefined exchange
+        currentPrice: undefined, 
+        currentAmount: undefined, 
+        priceSourceExchange: undefined, 
     }));
-    processHoldings(holdingsWithInitialSetup);
-  }, [initialData.holdings, processHoldings]);
+    // Initial processing without new investment calculations yet, as prices are not fetched
+    processAndSetHoldings(holdingsWithInitialSetup, newInvestmentAmount, roundingOption, currentPricesMap);
+  }, [initialData.holdings, processAndSetHoldings]); // Removed newInvestmentAmount, roundingOption, currentPricesMap as they trigger re-calc below
+
+
+  useEffect(() => {
+    // This effect recalculates new investment allocations when relevant states change
+    processAndSetHoldings(portfolioHoldings, newInvestmentAmount, roundingOption, currentPricesMap);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newInvestmentAmount, roundingOption, currentPricesMap, processAndSetHoldings]); // portfolioHoldings is implicitly handled by processAndSetHoldings
+
 
   const handleRefreshPrices = useCallback(async () => {
     if (isRefreshingPrices) {
@@ -66,7 +89,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       const assetsToFetch: FetchStockPricesInput = portfolioHoldings.map(h => ({
         isin: h.isin,
         id: h.id,
-        ticker: h.ticker // Ticker should already be set from initial processing or previous fetches
+        ticker: h.ticker 
       }));
 
       console.log("[InvestoTrackApp] Assets to fetch:", assetsToFetch);
@@ -86,36 +109,30 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       let pricesUpdatedCount = 0;
       let nonEurCurrencyWarnings: string[] = [];
       let notFoundWarnings: string[] = [];
+      const newPricesMap = new Map<string, {price: number, exchange?: string}>();
 
-      const updatedHoldings = portfolioHoldings.map(holding => {
-        const priceData = fetchedPrices.find(p => p.id === holding.id);
-        if (priceData) {
+      fetchedPrices.forEach(priceData => {
+        const holding = portfolioHoldings.find(h => h.id === priceData.id);
+        if (holding) {
           if (priceData.currentPrice !== undefined && priceData.currency) {
             if (priceData.currency.toUpperCase() !== 'EUR') {
               nonEurCurrencyWarnings.push(`Holding ${holding.name} (${priceData.symbol || holding.isin} on ${priceData.exchange || 'N/A'}) price is in ${priceData.currency}, not EUR. Price not updated.`);
-              return {
-                ...holding, // Keep old price
-                priceSourceExchange: priceData.exchange, // Still show the exchange where non-EUR price was found
-              };
+               // Store exchange even if non-EUR for display
+              newPricesMap.set(holding.id, { price: currentPricesMap.get(holding.id)?.price ?? holding.currentPrice, exchange: priceData.exchange });
+            } else {
+              pricesUpdatedCount++;
+              newPricesMap.set(holding.id, { price: priceData.currentPrice, exchange: priceData.exchange });
             }
-            pricesUpdatedCount++;
-            return {
-              ...holding,
-              currentPrice: priceData.currentPrice,
-              currentAmount: holding.quantity * priceData.currentPrice,
-              ticker: priceData.symbol || holding.ticker, // Update ticker if Yahoo found a better one
-              priceSourceExchange: priceData.exchange,
-            };
           } else {
             notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${priceData.symbol || holding.ticker || 'N/A'}, Exchange: ${priceData.exchange || 'N/A'}).`);
-            // If price not found, retain existing priceSourceExchange if any, or set from priceData if available
-             return { ...holding, priceSourceExchange: priceData.exchange || holding.priceSourceExchange };
+            // Store exchange even if price not found
+            newPricesMap.set(holding.id, { price: currentPricesMap.get(holding.id)?.price ?? holding.currentPrice, exchange: priceData.exchange });
           }
         }
-        return holding; // Keep existing (potentially undefined) price if no data or error
       });
+      
+      setCurrentPricesMap(prevMap => new Map([...Array.from(prevMap.entries()), ...Array.from(newPricesMap.entries())]));
 
-      processHoldings(updatedHoldings);
       if (pricesUpdatedCount > 0) {
         setPricesLastUpdated(new Date());
       }
@@ -166,7 +183,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       console.log("[InvestoTrackApp] Finished price refresh attempt.");
       setIsRefreshingPrices(false);
     }
-  }, [portfolioHoldings, processHoldings, toast, isRefreshingPrices]);
+  }, [portfolioHoldings, toast, isRefreshingPrices, currentPricesMap, processAndSetHoldings]);
 
 
   useEffect(() => {
@@ -204,7 +221,13 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
         <HoldingsTable holdings={portfolioHoldings} />
 
-        <RebalanceAdvisor holdings={portfolioHoldings} initialNewInvestmentAmount={newInvestmentAmount} />
+        <RebalanceAdvisor 
+          holdings={portfolioHoldings} 
+          newInvestmentAmount={newInvestmentAmount}
+          setNewInvestmentAmount={setNewInvestmentAmount}
+          roundingOption={roundingOption}
+          setRoundingOption={setRoundingOption}
+        />
       </main>
       <footer className="py-6 text-center text-sm text-muted-foreground border-t border-border">
         © {new Date().getFullYear()} InvestoTrack. Powered by Firebase Studio.

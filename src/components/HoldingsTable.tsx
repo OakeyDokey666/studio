@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
-import { ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, Building2 } from 'lucide-react';
+import { ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, Building2, Coins, PackagePlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,7 +23,7 @@ interface HoldingsTableProps {
   holdings: PortfolioHolding[];
 }
 
-type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'priceSourceExchange';
+type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'priceSourceExchange' | 'newInvestmentAllocation' | 'quantityToBuyFromNewInvestment';
 type SortDirection = 'asc' | 'desc';
 
 export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
@@ -63,9 +63,8 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
         if (typeof valA === 'number' && typeof valB === 'number') {
           return sortDirection === 'asc' ? valA - valB : valB - valA;
         }
-        // Handle undefined or null values for sorting, placing them at the end for ascending
-        if (valA === undefined || valA === null) return 1;
-        if (valB === undefined || valB === null) return -1;
+        if (valA === undefined || valA === null) return sortDirection === 'asc' ? 1 : -1; // Push undefined/null to end for asc
+        if (valB === undefined || valB === null) return sortDirection === 'asc' ? -1 : 1; // Push undefined/null to end for asc
         
         return 0;
       });
@@ -90,6 +89,8 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'currentAmount', label: 'Value (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'allocationPercentage', label: 'Current Alloc.', icon: <PieChart className="mr-1 h-4 w-4" /> },
     { key: 'targetAllocationPercentage', label: 'Target Alloc.', icon: <Target className="mr-1 h-4 w-4" /> },
+    { key: 'newInvestmentAllocation', label: 'New Inv. Alloc. (€)', icon: <Coins className="mr-1 h-4 w-4" /> },
+    { key: 'quantityToBuyFromNewInvestment', label: 'Qty to Buy (New Inv.)', icon: <PackagePlus className="mr-1 h-4 w-4" /> },
     { key: 'objective', label: 'Objective', icon: <Edit3 className="mr-1 h-4 w-4" />},
     { key: 'type', label: 'Type', icon: <Landmark className="mr-1 h-4 w-4" /> },
     { key: 'potentialIncome', label: 'Income', icon: <Percent className="mr-1 h-4 w-4" /> },
@@ -148,6 +149,8 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                      </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono">{formatPercentage(holding.targetAllocationPercentage)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(holding.newInvestmentAllocation)}</TableCell>
+                  <TableCell className="text-right">{holding.quantityToBuyFromNewInvestment?.toString() ?? 'N/A'}</TableCell>
                   <TableCell className="whitespace-nowrap">{holding.objective}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{holding.type}</Badge>
