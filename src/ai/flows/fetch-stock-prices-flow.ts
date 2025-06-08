@@ -3,7 +3,7 @@
 /**
  * @fileOverview Fetches latest stock prices using Yahoo Finance.
  *
- * - fetchStockPrices - A function that takes ISINs and returns current prices.
+ * - fetchStockPrices - A function that takes ISINs (and optional tickers) and returns current prices.
  * - FetchStockPricesInput - The input type for the fetchStockPrices function.
  * - FetchStockPricesOutput - The return type for the fetchStockPrices function.
  */
@@ -16,8 +16,9 @@ const FetchStockPricesInputSchema = z.array(
   z.object({
     isin: z.string().describe('The ISIN code of the asset.'),
     id: z.string().describe('The unique ID of the holding (can be same as ISIN).'),
+    ticker: z.string().optional().describe('The preferred ticker symbol for the asset.'),
   })
-).describe('An array of assets with their ISIN codes and IDs.');
+).describe('An array of assets with their ISIN codes, IDs, and optional ticker symbols.');
 export type FetchStockPricesInput = z.infer<typeof FetchStockPricesInputSchema>;
 
 const StockPriceDataSchema = z.object({
@@ -33,10 +34,30 @@ const FetchStockPricesOutputSchema = z.array(StockPriceDataSchema).describe('An 
 export type FetchStockPricesOutput = z.infer<typeof FetchStockPricesOutputSchema>;
 
 
-async function getPriceForIsin(isin: string, id: string): Promise<StockPriceData> {
+async function getPriceForIsin(isin: string, id: string, preferredTicker?: string): Promise<StockPriceData> {
+  let quote;
+
+  // Attempt 0: Use preferredTicker if provided
+  if (preferredTicker) {
+    try {
+      quote = await yahooFinance.quote(preferredTicker);
+      if (quote && quote.regularMarketPrice && quote.currency) {
+        return {
+          id,
+          isin,
+          currentPrice: quote.regularMarketPrice,
+          currency: quote.currency,
+          symbol: quote.symbol || preferredTicker, // Use the symbol from quote if available, else the preferredTicker
+        };
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch price for preferred ticker ${preferredTicker} (ISIN: ${isin}, ID: ${id}). Error: ${error instanceof Error ? error.message : String(error)}. Falling back to other methods.`);
+    }
+  }
+
+  // Attempt 1: Directly use ISIN as symbol (works for some major exchanges)
   try {
-    // Attempt 1: Directly use ISIN as symbol (works for some major exchanges)
-    let quote = await yahooFinance.quote(isin);
+    quote = await yahooFinance.quote(isin);
     if (quote && quote.regularMarketPrice && quote.currency) {
       return {
         id,
@@ -46,17 +67,26 @@ async function getPriceForIsin(isin: string, id: string): Promise<StockPriceData
         symbol: quote.symbol,
       };
     }
+  } catch (error) {
+     // console.warn(`Direct quote with ISIN ${isin} failed. Will try searching.`);
+  }
 
-    // Attempt 2: Search by ISIN to get a ticker symbol
+  // Attempt 2: Search by ISIN to get a ticker symbol
+  try {
     const searchResults = await yahooFinance.search(isin);
     if (searchResults.quotes && searchResults.quotes.length > 0) {
-      // Prioritize results with matching ISIN and EUR currency if possible
-      let bestMatch = searchResults.quotes.find(q => q.isin === isin && q.exShortName?.includes('EUR'));
+      let bestMatch = searchResults.quotes.find(q => q.isin === isin && q.exchange?.toUpperCase().includes('EUR') && q.currency?.toUpperCase() === 'EUR');
+      if (!bestMatch) {
+        bestMatch = searchResults.quotes.find(q => q.isin === isin && q.currency?.toUpperCase() === 'EUR');
+      }
       if (!bestMatch) {
         bestMatch = searchResults.quotes.find(q => q.isin === isin);
       }
+      if (!bestMatch && preferredTicker) { // If preferred ticker failed, and ISIN direct quote failed, try finding preferred ticker in search results
+         bestMatch = searchResults.quotes.find(q => q.symbol === preferredTicker);
+      }
       if (!bestMatch) {
-        bestMatch = searchResults.quotes[0]; // Fallback to the first result
+        bestMatch = searchResults.quotes[0]; 
       }
       
       if (bestMatch && bestMatch.symbol) {
@@ -72,12 +102,12 @@ async function getPriceForIsin(isin: string, id: string): Promise<StockPriceData
         }
       }
     }
-    console.warn(`Could not find price for ISIN ${isin} (ID: ${id}) after direct quote and search.`);
-    return { id, isin }; // Return without price if not found
   } catch (error) {
-    console.error(`Error fetching price for ISIN ${isin} (ID: ${id}):`, error);
-    return { id, isin }; // Return without price on error
+     console.error(`Error during search or quote for ISIN ${isin} (ID: ${id}):`, error);
   }
+  
+  console.warn(`Could not find price for ISIN ${isin} (ID: ${id}, Ticker: ${preferredTicker}) after all attempts.`);
+  return { id, isin, symbol: preferredTicker }; // Return without price if not found
 }
 
 
@@ -92,7 +122,7 @@ const fetchStockPricesFlow = ai.defineFlow(
     outputSchema: FetchStockPricesOutputSchema,
   },
   async (assets) => {
-    const pricePromises = assets.map(asset => getPriceForIsin(asset.isin, asset.id));
+    const pricePromises = assets.map(asset => getPriceForIsin(asset.isin, asset.id, asset.ticker));
     const results = await Promise.all(pricePromises);
     return results.filter(r => r !== null) as StockPriceData[];
   }

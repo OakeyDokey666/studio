@@ -1,3 +1,4 @@
+
 export interface PortfolioHolding {
   id: string; // ISIN
   name: string;
@@ -15,6 +16,7 @@ export interface PortfolioHolding {
   isin: string;
   distributes?: string;
   targetAllocationPercentage?: number; // Target allocation, calculated from targetBuyAmount
+  ticker?: string; // Optional ticker symbol
 }
 
 export interface ParsedCsvData {
