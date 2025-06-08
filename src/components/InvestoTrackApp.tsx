@@ -38,14 +38,11 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const { toast } = useToast();
 
   const processHoldings = useCallback((holdingsToProcess: PortfolioHolding[]) => {
-    // Assuming holdingsToProcess already have their 'ticker' field correctly populated
-    // either from initial load or from price refresh logic.
     const metricsApplied = calculatePortfolioMetrics(holdingsToProcess);
     setPortfolioHoldings(metricsApplied);
-  }, [setPortfolioHoldings]); // calculatePortfolioMetrics is a stable import
+  }, []); // Removed setPortfolioHoldings from dependencies as it's stable
 
   useEffect(() => {
-    // Enrich with tickers before processing initial data
     const holdingsWithInitialTickers = initialData.holdings.map(h => ({
         ...h,
         ticker: h.ticker || isinToTickerMap[h.isin] || undefined
@@ -55,20 +52,25 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
   const handleRefreshPrices = async () => {
     setIsRefreshingPrices(true);
+    console.log("[InvestoTrackApp] Starting price refresh...");
     try {
       const assetsToFetch: FetchStockPricesInput = portfolioHoldings.map(h => ({
         isin: h.isin,
         id: h.id,
-        ticker: h.ticker || isinToTickerMap[h.isin] // Use holding's current ticker or fallback to map
+        ticker: h.ticker || isinToTickerMap[h.isin]
       }));
 
+      console.log("[InvestoTrackApp] Assets to fetch:", assetsToFetch);
+
       if (assetsToFetch.length === 0) {
+        console.log("[InvestoTrackApp] No holdings to refresh.");
         toast({ title: "No holdings to refresh", description: "Your portfolio is empty." });
         setIsRefreshingPrices(false);
         return;
       }
 
       const fetchedPrices: StockPriceData[] = await fetchStockPrices(assetsToFetch);
+      console.log("[InvestoTrackApp] Fetched prices raw data:", fetchedPrices);
 
       let pricesUpdatedCount = 0;
       let nonEurCurrencyWarnings: string[] = [];
@@ -87,7 +89,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               ...holding,
               currentPrice: priceData.currentPrice,
               currentAmount: holding.quantity * priceData.currentPrice,
-              ticker: priceData.symbol || holding.ticker, // Persist Yahoo's symbol if provided, else keep existing
+              ticker: priceData.symbol || holding.ticker, 
             };
           } else {
             notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${priceData.symbol || holding.ticker || 'N/A'}).`);
@@ -99,13 +101,20 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       processHoldings(updatedHoldings);
       setPricesLastUpdated(new Date());
 
+      console.log(`[InvestoTrackApp] Prices updated count: ${pricesUpdatedCount}`);
+      console.log(`[InvestoTrackApp] Non-EUR currency warnings:`, nonEurCurrencyWarnings);
+      console.log(`[InvestoTrackApp] Not found warnings:`, notFoundWarnings);
+
       if (pricesUpdatedCount > 0) {
+        console.log("[InvestoTrackApp] Toasting: Prices Refreshed");
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
       } else {
-         toast({ title: "Prices Checked", description: "No EUR prices were updated. They might be current or not found by Yahoo Finance." });
+        console.log("[InvestoTrackApp] Toasting: Prices Checked (no EUR updates)");
+        toast({ title: "Prices Checked", description: "No EUR prices were updated. They might be current or not found by Yahoo Finance." });
       }
 
       if (nonEurCurrencyWarnings.length > 0) {
+        console.log("[InvestoTrackApp] Toasting: Currency Mismatch");
         toast({
           title: "Currency Mismatch",
           description: (
@@ -118,6 +127,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         });
       }
       if (notFoundWarnings.length > 0) {
+        console.log("[InvestoTrackApp] Toasting: Price Not Found");
          toast({
           title: "Price Not Found",
           description: (
@@ -131,9 +141,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       }
 
     } catch (error) {
-      console.error("Error refreshing prices:", error);
-      toast({ title: "Error Refreshing Prices", description: `Could not fetch latest prices. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
+      console.error("[InvestoTrackApp] Error refreshing prices:", error);
+      toast({ title: "Error Refreshing Prices", description: `Could not fetch latest prices. ${error instanceof Error ? error.message : String(error)}`, variant: "destructive" });
     } finally {
+      console.log("[InvestoTrackApp] Finished price refresh attempt.");
       setIsRefreshingPrices(false);
     }
   };
