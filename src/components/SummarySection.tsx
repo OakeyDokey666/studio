@@ -1,7 +1,7 @@
 import type { PortfolioHolding } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/portfolioUtils';
-import { TrendingUp, DollarSign, Info } from 'lucide-react';
+import { TrendingUp, Coins, Info } from 'lucide-react';
 
 interface SummarySectionProps {
   holdings: PortfolioHolding[];
@@ -36,7 +36,7 @@ export function SummarySection({ holdings, newInvestmentAmount }: SummarySection
         {newInvestmentAmount !== undefined && (
           <div className="flex flex-col p-4 bg-secondary/50 rounded-lg shadow">
             <span className="text-sm text-muted-foreground font-medium flex items-center">
-              <DollarSign className="mr-1 h-4 w-4" />
+              <Coins className="mr-1 h-4 w-4" />
               Available for New Investment
             </span>
             <span className="text-2xl font-semibold text-foreground">

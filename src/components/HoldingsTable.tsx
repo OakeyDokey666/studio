@@ -2,7 +2,7 @@
 'use client';
 
 import type { PortfolioHolding } from '@/types/portfolio';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Table,
   TableHeader,
@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
-import { ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, DollarSign } from 'lucide-react';
+import { ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,7 +26,7 @@ interface HoldingsTableProps {
 type SortKey = keyof PortfolioHolding | 'allocationDifference';
 type SortDirection = 'asc' | 'desc';
 
-export function HoldingsTable({ holdings: data }: HoldingsTableProps) { // Renamed prop to 'data' for clarity or can use 'holdings' directly
+export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -41,7 +41,6 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) { // Renam
   };
 
   const sortedAndFilteredHoldings = useMemo(() => {
-    // Use the 'data' prop (which is the 'holdings' prop) directly here
     let filtered = data.filter(holding =>
       holding.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       holding.isin.toLowerCase().includes(searchTerm.toLowerCase())
@@ -68,22 +67,22 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) { // Renam
       });
     }
     return filtered;
-  }, [data, searchTerm, sortKey, sortDirection]); // Use 'data' (the prop) in dependency array
+  }, [data, searchTerm, sortKey, sortDirection]); 
 
   const getDeviationSeverity = (current?: number, target?: number): 'low' | 'medium' | 'high' | 'none' => {
     if (current === undefined || target === undefined) return 'none';
     const diff = Math.abs(current - target);
-    if (diff > 5) return 'high'; // More than 5% deviation is high
-    if (diff > 2) return 'medium'; // 2-5% deviation is medium
-    if (diff > 0.5) return 'low'; // 0.5-2% deviation is low
+    if (diff > 5) return 'high'; 
+    if (diff > 2) return 'medium'; 
+    if (diff > 0.5) return 'low'; 
     return 'none';
   };
 
   const tableHeaders = [
     { key: 'name', label: 'Name', icon: <ListTree className="mr-1 h-4 w-4" /> },
     { key: 'quantity', label: 'Qty', icon: <Hash className="mr-1 h-4 w-4" /> },
-    { key: 'currentPrice', label: 'Price', icon: <DollarSign className="mr-1 h-4 w-4" /> },
-    { key: 'currentAmount', label: 'Value', icon: <DollarSign className="mr-1 h-4 w-4" /> },
+    { key: 'currentPrice', label: 'Price (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
+    { key: 'currentAmount', label: 'Value (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'allocationPercentage', label: 'Current Alloc.', icon: <PieChart className="mr-1 h-4 w-4" /> },
     { key: 'targetAllocationPercentage', label: 'Target Alloc.', icon: <Target className="mr-1 h-4 w-4" /> },
     { key: 'objective', label: 'Objective', icon: <Edit3 className="mr-1 h-4 w-4" />},
