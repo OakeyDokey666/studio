@@ -31,15 +31,7 @@ type PriceMapEntry = {
   price?: number;
   exchange?: string;
   symbol?: string;
-  volume?: number;
-  avgVolume?: number;
-  marketCap?: number;
-  peRatio?: number;
-  eps?: number;
-  fiftyTwoWeekLow?: number;
-  fiftyTwoWeekHigh?: number;
-  regularMarketChange?: number;
-  regularMarketChangePercent?: number;
+  // Fields for Name Popover
   ter?: number;
   fundSize?: number;
   categoryName?: string;
@@ -65,16 +57,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       currentPrice: undefined,
       currentAmount: undefined,
       priceSourceExchange: undefined,
-      // Initialize all other fetched fields
-      volume: undefined,
-      avgVolume: undefined,
-      marketCap: undefined,
-      peRatio: undefined,
-      eps: undefined,
-      fiftyTwoWeekLow: undefined,
-      fiftyTwoWeekHigh: undefined,
-      regularMarketChange: undefined,
-      regularMarketChangePercent: undefined,
+      // Initialize name popover fields
       ter: undefined,
       fundSize: undefined,
       categoryName: undefined,
@@ -97,16 +80,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         currentPrice: livePrice,
         currentAmount: livePrice !== undefined ? h.quantity * livePrice : undefined,
         priceSourceExchange: priceInfo?.exchange ?? h.priceSourceExchange,
-        // Map all fetched financial details
-        volume: priceInfo?.volume,
-        avgVolume: priceInfo?.avgVolume,
-        marketCap: priceInfo?.marketCap,
-        peRatio: priceInfo?.peRatio,
-        eps: priceInfo?.eps,
-        fiftyTwoWeekLow: priceInfo?.fiftyTwoWeekLow,
-        fiftyTwoWeekHigh: priceInfo?.fiftyTwoWeekHigh,
-        regularMarketChange: priceInfo?.regularMarketChange,
-        regularMarketChangePercent: priceInfo?.regularMarketChangePercent,
+        // Map name popover fields
         ter: priceInfo?.ter,
         fundSize: priceInfo?.fundSize,
         categoryName: priceInfo?.categoryName,
@@ -121,11 +95,11 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
   const handleRefreshPrices = useCallback(async () => {
     if (isRefreshingPrices) {
-      console.log("[InvestoTrackApp] Price refresh already in progress.");
+      console.log("[InvestoTrackApp RB] Price refresh already in progress.");
       return;
     }
     setIsRefreshingPrices(true);
-    console.log("[InvestoTrackApp] Starting price refresh for baseHoldings:", baseHoldings);
+    console.log("[InvestoTrackApp RB] Starting price refresh for baseHoldings:", baseHoldings);
     try {
       const assetsToFetch: FetchStockPricesInput = baseHoldings.map(h => ({
         isin: h.isin,
@@ -133,10 +107,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         ticker: h.ticker
       }));
 
-      console.log("[InvestoTrackApp] Assets to fetch:", assetsToFetch);
+      console.log("[InvestoTrackApp RB] Assets to fetch:", assetsToFetch);
 
       if (assetsToFetch.length === 0) {
-        console.log("[InvestoTrackApp] No base holdings to refresh.");
+        console.log("[InvestoTrackApp RB] No base holdings to refresh.");
         if (initialRefreshDoneRef.current) {
              toast({ title: "No holdings to refresh", description: "Your portfolio is empty." });
         }
@@ -145,7 +119,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       }
 
       const fetchedPricesData: StockPriceData[] = await fetchStockPrices(assetsToFetch);
-      console.log("[InvestoTrackApp] Fetched prices raw data from flow:", fetchedPricesData);
+      console.log("[InvestoTrackApp RB] Fetched prices raw data from flow:", fetchedPricesData);
 
       let pricesUpdatedCount = 0;
       let notFoundWarnings: string[] = [];
@@ -157,15 +131,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
           let entryToSet: PriceMapEntry = {
             exchange: priceData.exchange,
             symbol: priceData.symbol,
-            volume: priceData.volume,
-            avgVolume: priceData.avgVolume,
-            marketCap: priceData.marketCap,
-            peRatio: priceData.peRatio,
-            eps: priceData.eps,
-            fiftyTwoWeekLow: priceData.fiftyTwoWeekLow,
-            fiftyTwoWeekHigh: priceData.fiftyTwoWeekHigh,
-            regularMarketChange: priceData.regularMarketChange,
-            regularMarketChangePercent: priceData.regularMarketChangePercent,
+            // Name popover fields
             ter: priceData.ter,
             fundSize: priceData.fundSize,
             categoryName: priceData.categoryName,
@@ -174,13 +140,12 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
           if (priceData.currentPrice !== undefined && priceData.currency?.toUpperCase() === 'EUR') {
               pricesUpdatedCount++;
               entryToSet.price = priceData.currentPrice;
-              console.log(`[InvestoTrackApp] Price updated for ${holdingFromBase.name}: ${priceData.currentPrice} ${priceData.currency}`);
+              console.log(`[InvestoTrackApp RB] Price updated for ${holdingFromBase.name}: ${priceData.currentPrice} ${priceData.currency}`);
           } else {
-            // If currentPrice is undefined OR currency is not EUR, it's a "not found" for our purposes
             notFoundWarnings.push(`Could not find EUR price for ${holdingFromBase.name} (ISIN: ${holdingFromBase.isin}, Symbol: ${priceData.symbol || holdingFromBase.ticker || 'N/A'}, Reported Exchange: ${priceData.exchange || 'N/A'}, Reported Currency: ${priceData.currency || 'N/A'}).`);
             const existingEntry = currentPricesMap.get(holdingFromBase.id);
-            entryToSet.price = existingEntry?.price; // Keep old price if new one isn't valid EUR
-             console.log(`[InvestoTrackApp] No valid EUR price found by flow for ${holdingFromBase.name}. Kept old price: ${existingEntry?.price}`);
+            entryToSet.price = existingEntry?.price; 
+            console.log(`[InvestoTrackApp RB] No valid EUR price found by flow for ${holdingFromBase.name}. Kept old price: ${existingEntry?.price}`);
           }
           newPricesMapUpdates.set(holdingFromBase.id, entryToSet);
         }
@@ -190,7 +155,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         const combinedMap = new Map(prevMap);
         baseHoldings.forEach(bh => {
             if (!combinedMap.has(bh.id)) {
-                combinedMap.set(bh.id, { /* default empty entry */ });
+                combinedMap.set(bh.id, { /* default empty entry for name popover */ });
             }
         });
         newPricesMapUpdates.forEach((value, key) => {
@@ -220,13 +185,13 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
               {notFoundWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
             </ul>
           ),
-          variant: "default", // Changed from destructive as it's more of a warning
+          variant: "default",
           duration: 10000,
         });
       }
 
     } catch (error) {
-      console.error("[InvestoTrackApp] Error refreshing prices:", error);
+      console.error("[InvestoTrackApp RB] Error refreshing prices:", error);
       toast({ title: "Error Refreshing Prices", description: `Could not fetch latest prices. ${error instanceof Error ? error.message : String(error)}`, variant: "destructive" });
     } finally {
       setIsRefreshingPrices(false);

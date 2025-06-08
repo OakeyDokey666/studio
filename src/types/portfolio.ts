@@ -19,19 +19,6 @@ export interface PortfolioHolding {
   ticker?: string;
   priceSourceExchange?: string;
 
-  // Fields for price popover
-  volume?: number;
-  avgVolume?: number;
-  marketCap?: number;
-  peRatio?: number; // P/E
-  eps?: number; // Earnings Per Share
-  fiftyTwoWeekLow?: number;
-  fiftyTwoWeekHigh?: number;
-
-  // Fields for day change
-  regularMarketChange?: number;
-  regularMarketChangePercent?: number;
-
   // Fields for name popover (from fundProfile)
   ter?: number; // Total Expense Ratio
   fundSize?: number; // Assets Under Management

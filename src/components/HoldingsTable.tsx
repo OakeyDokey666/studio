@@ -17,9 +17,8 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
 import {
   ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard,
-  Building2, Coins, PackagePlus, TrendingUp, TrendingDown, Minus, BarChartBig, BarChartHorizontalBig,
-  Globe, Scale, Activity, CalendarDays, Bookmark, Briefcase
-} from 'lucide-react';
+  Building2, Coins, PackagePlus, Bookmark, Briefcase
+} from 'lucide-react'; // Removed unused icons
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,25 +27,8 @@ interface HoldingsTableProps {
   holdings: PortfolioHolding[];
 }
 
-type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'regularMarketChangePercent';
+type SortKey = keyof PortfolioHolding | 'allocationDifference'; // Removed 'regularMarketChangePercent'
 type SortDirection = 'asc' | 'desc';
-
-const formatLargeNumber = (value?: number): string => {
-  if (value === undefined || value === null || isNaN(value)) return 'N/A';
-  if (Math.abs(value) >= 1e12) {
-    return (value / 1e12).toFixed(2) + ' T';
-  }
-  if (Math.abs(value) >= 1e9) {
-    return (value / 1e9).toFixed(2) + ' B';
-  }
-  if (Math.abs(value) >= 1e6) {
-    return (value / 1e6).toFixed(2) + ' M';
-  }
-  if (Math.abs(value) >= 1e3) {
-    return (value / 1e3).toFixed(2) + ' K';
-  }
-  return value.toString();
-};
 
 export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,9 +56,6 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
         if (sortKey === 'allocationDifference') {
           valA = Math.abs((a.allocationPercentage ?? 0) - (a.targetAllocationPercentage ?? 0));
           valB = Math.abs((b.allocationPercentage ?? 0) - (b.targetAllocationPercentage ?? 0));
-        } else if (sortKey === 'regularMarketChangePercent') {
-          valA = a.regularMarketChangePercent ?? -Infinity; // Treat undefined as very small for sorting
-          valB = b.regularMarketChangePercent ?? -Infinity;
         }
         else {
            valA = a[sortKey as keyof PortfolioHolding];
@@ -111,7 +90,6 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'name', label: 'Name', icon: <ListTree className="mr-1 h-4 w-4" /> },
     { key: 'quantity', label: 'Qty', icon: <Hash className="mr-1 h-4 w-4" /> },
     { key: 'currentPrice', label: 'Price (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
-    { key: 'regularMarketChangePercent', label: 'Day Change', icon: <Activity className="mr-1 h-4 w-4" />},
     { key: 'priceSourceExchange', label: 'Exchange', icon: <Building2 className="mr-1 h-4 w-4" /> },
     { key: 'currentAmount', label: 'Value (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'allocationPercentage', label: 'Current Alloc.', icon: <PieChart className="mr-1 h-4 w-4" /> },
@@ -120,80 +98,16 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     { key: 'quantityToBuyFromNewInvestment', label: 'Qty to Buy (New Inv.)', icon: <PackagePlus className="mr-1 h-4 w-4" /> },
     { key: 'objective', label: 'Objective', icon: <Edit3 className="mr-1 h-4 w-4" />},
     { key: 'type', label: 'Type', icon: <Landmark className="mr-1 h-4 w-4" /> },
-    { key: 'potentialIncome', label: 'Income', icon: <Percent className="mr-1 h-4 w-4" /> },
+    { key: 'potentialIncome', label: 'Income', icon: <Percent className="mr-1 h-4 w-4" /> }, // Assuming this means dividend yield string
     { key: 'isin', label: 'ISIN', icon: <Info className="mr-1 h-4 w-4" /> },
   ];
 
-  const renderDayChange = (holding: PortfolioHolding) => {
-    const change = holding.regularMarketChange;
-    const percentChange = holding.regularMarketChangePercent;
-
-    if (change === undefined || percentChange === undefined) {
-      return <span className="text-muted-foreground">N/A</span>;
-    }
-
-    const isPositive = change > 0;
-    const isNegative = change < 0;
-    const colorClass = isPositive ? 'text-green-600 dark:text-green-500' : isNegative ? 'text-red-600 dark:text-red-500' : 'text-muted-foreground';
-    const Icon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
-
-    return (
-      <div className={cn('flex items-center justify-end space-x-1 whitespace-nowrap', colorClass)}>
-        <Icon className="h-4 w-4" />
-        <span>{change.toFixed(2)}</span>
-        <span>({(percentChange * 100).toFixed(2)}%)</span>
-      </div>
-    );
-  };
-
   const renderPriceCell = (holding: PortfolioHolding) => {
     const priceDisplay = formatCurrency(holding.currentPrice);
-    const content = (
-      <div className="space-y-2 p-4 text-sm min-w-[280px]">
-        <h4 className="font-medium leading-none mb-2 text-foreground">Financial Details</h4>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-          <div className="flex items-center"><BarChartBig className="mr-2 h-4 w-4 text-muted-foreground" /> Volume:</div>
-          <div className="text-right font-mono">{formatLargeNumber(holding.volume)}</div>
-
-          <div className="flex items-center"><BarChartHorizontalBig className="mr-2 h-4 w-4 text-muted-foreground" /> Avg Volume:</div>
-          <div className="text-right font-mono">{formatLargeNumber(holding.avgVolume)}</div>
-
-          <div className="flex items-center"><Globe className="mr-2 h-4 w-4 text-muted-foreground" /> Market Cap:</div>
-          <div className="text-right font-mono">{formatCurrency(holding.marketCap, holding.marketCap ? '' : undefined)}</div>
-
-          <div className="flex items-center"><Scale className="mr-2 h-4 w-4 text-muted-foreground" /> P/E Ratio:</div>
-          <div className="text-right font-mono">{holding.peRatio?.toFixed(2) ?? 'N/A'}</div>
-
-          <div className="flex items-center"><TrendingUp className="mr-2 h-4 w-4 text-muted-foreground" /> EPS:</div>
-          <div className="text-right font-mono">{holding.eps?.toFixed(2) ?? 'N/A'}</div>
-
-          <div className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" /> 52W Range:</div>
-          <div className="text-right font-mono whitespace-nowrap">
-            {formatCurrency(holding.fiftyTwoWeekLow, '')} - {formatCurrency(holding.fiftyTwoWeekHigh, '')}
-          </div>
-        </div>
-      </div>
-    );
-
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="link"
-            className="text-right p-0 h-auto font-normal data-[state=open]:bg-accent/50 hover:bg-accent/20"
-            disabled={holding.currentPrice === undefined}
-          >
-            {holding.currentPrice === undefined
-              ? <span className="text-muted-foreground">{priceDisplay}</span>
-              : <span className="text-right">{priceDisplay}</span>
-            }
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto max-w-md shadow-xl" side="top" align="start">
-          {content}
-        </PopoverContent>
-      </Popover>
-    );
+    // Simple price display, no popover for this rollback
+    return holding.currentPrice === undefined
+      ? <span className="text-muted-foreground">{priceDisplay}</span>
+      : <span className="text-right">{priceDisplay}</span>;
   };
 
   const renderNameCell = (holding: PortfolioHolding) => {
@@ -201,15 +115,12 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
       <div className="space-y-2 p-4 text-sm min-w-[250px]">
         <h4 className="font-medium leading-none mb-2 text-foreground">{holding.name}</h4>
         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-            <div className="flex items-center"><Info className="mr-2 h-4 w-4 text-muted-foreground" /> ISIN:</div>
-            <div className="text-right font-mono">{holding.isin}</div>
+            <div className="flex items-center"><Briefcase className="mr-2 h-4 w-4 text-muted-foreground" /> Fund Size (AUM):</div>
+            <div className="text-right font-mono">{formatCurrency(holding.fundSize, holding.fundSize ? '' : undefined)}</div>
 
             <div className="flex items-center"><Percent className="mr-2 h-4 w-4 text-muted-foreground" /> TER:</div>
             <div className="text-right font-mono">{holding.ter ? `${(holding.ter * 100).toFixed(2)}%` : 'N/A'}</div>
-
-            <div className="flex items-center"><Briefcase className="mr-2 h-4 w-4 text-muted-foreground" /> Fund Size:</div>
-            <div className="text-right font-mono">{formatCurrency(holding.fundSize, holding.fundSize ? '' : undefined)}</div>
-
+            
             <div className="flex items-center"><Bookmark className="mr-2 h-4 w-4 text-muted-foreground" /> Category:</div>
             <div className="text-right">{holding.categoryName ?? 'N/A'}</div>
         </div>
@@ -269,7 +180,6 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                   <TableCell className="whitespace-nowrap">{renderNameCell(holding)}</TableCell>
                   <TableCell className="text-right">{holding.quantity}</TableCell>
                   <TableCell className="text-right">{renderPriceCell(holding)}</TableCell>
-                  <TableCell className="text-right">{renderDayChange(holding)}</TableCell>
                   <TableCell className="text-center">{holding.priceSourceExchange || 'N/A'}</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(holding.currentAmount)}</TableCell>
                   <TableCell className="text-right">
