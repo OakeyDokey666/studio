@@ -1,6 +1,13 @@
-import { Briefcase } from 'lucide-react';
+import { Briefcase, RefreshCw, Loader2, Clock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-export function AppHeader() {
+interface AppHeaderProps {
+  onRefreshPrices?: () => void;
+  isRefreshingPrices?: boolean;
+  pricesLastUpdated?: Date | null;
+}
+
+export function AppHeader({ onRefreshPrices, isRefreshingPrices, pricesLastUpdated }: AppHeaderProps) {
   return (
     <header className="bg-card border-b border-border shadow-sm sticky top-0 z-40">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -10,7 +17,30 @@ export function AppHeader() {
             InvestoTrack
           </h1>
         </div>
-        {/* Placeholder for potential actions like a Refresh button or Theme Toggle */}
+        <div className="flex items-center space-x-4">
+          {pricesLastUpdated && (
+            <div className="text-xs text-muted-foreground flex items-center">
+              <Clock className="mr-1 h-3 w-3" />
+              Prices updated: {pricesLastUpdated.toLocaleTimeString()}
+            </div>
+          )}
+          {onRefreshPrices && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefreshPrices}
+              disabled={isRefreshingPrices}
+              className="shadow-sm"
+            >
+              {isRefreshingPrices ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh Prices
+            </Button>
+          )}
+        </div>
       </div>
     </header>
   );
