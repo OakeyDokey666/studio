@@ -19,16 +19,17 @@ interface InvestoTrackAppProps {
 }
 
 const isinToTickerMap: Record<string, string> = {
-  "FR0013412012": "PAASI.PA", 
-  "LU1812092168": "SEL.PA",  
-  "IE00B4K6B022": "50E.PA",   
-  "IE00BZ4BMM98": "EUHD.PA", 
-  "IE0002XZSHO1": "WPEA.PA", 
-  "IE00B5M1WJ87": "EUDV.PA"   
+  "FR0013412012": "PAASI.PA",
+  "LU1812092168": "SEL.PA",
+  "IE00B4K6B022": "50E.PA",
+  "IE00BZ4BMM98": "EUHD.PA",
+  "IE0002XZSHO1": "WPEA.PA",
+  "IE00B5M1WJ87": "EUDV.PA"
 };
 
 export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const [portfolioHoldings, setPortfolioHoldings] = useState<PortfolioHolding[]>([]);
+  const [baseHoldings, setBaseHoldings] = useState<PortfolioHolding[]>([]);
   const [newInvestmentAmount, setNewInvestmentAmount] = useState<number | undefined>(initialData.initialNewInvestmentAmount);
   const [roundingOption, setRoundingOption] = useState<RoundingOption>('classic');
   const [csvErrors, setCsvErrors] = useState<string[]>(initialData.csvErrors || []);
@@ -38,44 +39,49 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const initialRefreshDoneRef = useRef(false);
   const [currentPricesMap, setCurrentPricesMap] = useState<Map<string, {price: number, exchange?: string}>>(new Map());
 
-  const processAndSetHoldings = useCallback((
-    holdingsToProcess: PortfolioHolding[],
-    currentNewInvestmentAmount?: number,
-    currentRoundingOption?: RoundingOption,
-    pricesMap?: Map<string, {price: number, exchange?: string}>
-  ) => {
-    const holdingsWithPrices = holdingsToProcess.map(h => {
-      const priceInfo = pricesMap?.get(h.id);
+  // Effect 1: Set up baseHoldings from initialData, clearing dynamic price fields
+  useEffect(() => {
+    const initialSetup = initialData.holdings.map(h => ({
+      ...h,
+      ticker: h.ticker || isinToTickerMap[h.isin] || undefined,
+      currentPrice: undefined, // Explicitly undefined until fetched
+      currentAmount: undefined, // Explicitly undefined until calculated from fetched price
+      priceSourceExchange: undefined, // Explicitly undefined until fetched
+    }));
+    setBaseHoldings(initialSetup);
+  }, [initialData.holdings]); // Only re-run if initialData.holdings changes
+
+  // Effect 2: Main calculation effect for portfolioHoldings
+  // Runs when baseHoldings, currentPricesMap, newInvestmentAmount, or roundingOption change
+  useEffect(() => {
+    if (baseHoldings.length === 0) {
+      // If initialData itself was empty, or baseHoldings not yet populated.
+      if (initialData.holdings.length === 0) {
+        setPortfolioHoldings([]);
+      }
+      // If initialData.holdings is not empty but baseHoldings is,
+      // it means Effect 1 hasn't run or completed yet. This effect will run again once baseHoldings is set.
+      return;
+    }
+
+    // Step 1: Apply live/fetched prices to the base holdings structure
+    const holdingsWithLivePrices = baseHoldings.map(h => {
+      const priceInfo = currentPricesMap.get(h.id);
+      const livePrice = priceInfo?.price;
+
       return {
         ...h,
-        currentPrice: priceInfo?.price ?? h.currentPrice, // Use map price if available, else keep existing
-        currentAmount: priceInfo?.price !== undefined ? h.quantity * priceInfo.price : h.currentAmount,
-        priceSourceExchange: priceInfo?.exchange ?? h.priceSourceExchange,
+        currentPrice: livePrice, // Will be undefined if not in map
+        currentAmount: livePrice !== undefined ? h.quantity * livePrice : undefined, // Calculate if livePrice exists
+        priceSourceExchange: priceInfo?.exchange ?? h.priceSourceExchange, // Use exchange from map or existing (which is undefined from base)
       };
     });
-    const metricsApplied = calculatePortfolioMetrics(holdingsWithPrices, currentNewInvestmentAmount, currentRoundingOption);
+
+    // Step 2: Apply all other portfolio metrics (allocations, new investment calculations, etc.)
+    const metricsApplied = calculatePortfolioMetrics(holdingsWithLivePrices, newInvestmentAmount, roundingOption);
     setPortfolioHoldings(metricsApplied);
-  }, []);
 
-
-  useEffect(() => {
-    const holdingsWithInitialSetup = initialData.holdings.map(h => ({
-        ...h,
-        ticker: h.ticker || isinToTickerMap[h.isin] || undefined,
-        currentPrice: undefined, 
-        currentAmount: undefined, 
-        priceSourceExchange: undefined, 
-    }));
-    // Initial processing without new investment calculations yet, as prices are not fetched
-    processAndSetHoldings(holdingsWithInitialSetup, newInvestmentAmount, roundingOption, currentPricesMap);
-  }, [initialData.holdings, processAndSetHoldings]); // Removed newInvestmentAmount, roundingOption, currentPricesMap as they trigger re-calc below
-
-
-  useEffect(() => {
-    // This effect recalculates new investment allocations when relevant states change
-    processAndSetHoldings(portfolioHoldings, newInvestmentAmount, roundingOption, currentPricesMap);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newInvestmentAmount, roundingOption, currentPricesMap, processAndSetHoldings]); // portfolioHoldings is implicitly handled by processAndSetHoldings
+  }, [baseHoldings, currentPricesMap, newInvestmentAmount, roundingOption, initialData.holdings]);
 
 
   const handleRefreshPrices = useCallback(async () => {
@@ -84,18 +90,19 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       return;
     }
     setIsRefreshingPrices(true);
-    console.log("[InvestoTrackApp] Starting price refresh...");
+    console.log("[InvestoTrackApp] Starting price refresh for baseHoldings:", baseHoldings); // Log baseHoldings
     try {
-      const assetsToFetch: FetchStockPricesInput = portfolioHoldings.map(h => ({
+      // Use baseHoldings to construct assetsToFetch, ensuring we always try to refresh all initial items
+      const assetsToFetch: FetchStockPricesInput = baseHoldings.map(h => ({
         isin: h.isin,
         id: h.id,
-        ticker: h.ticker 
+        ticker: h.ticker
       }));
 
       console.log("[InvestoTrackApp] Assets to fetch:", assetsToFetch);
 
       if (assetsToFetch.length === 0) {
-        console.log("[InvestoTrackApp] No holdings to refresh.");
+        console.log("[InvestoTrackApp] No base holdings to refresh.");
         if (initialRefreshDoneRef.current) {
              toast({ title: "No holdings to refresh", description: "Your portfolio is empty." });
         }
@@ -109,29 +116,51 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       let pricesUpdatedCount = 0;
       let nonEurCurrencyWarnings: string[] = [];
       let notFoundWarnings: string[] = [];
-      const newPricesMap = new Map<string, {price: number, exchange?: string}>();
+      const newPricesMapUpdates = new Map<string, {price: number, exchange?: string}>();
 
       fetchedPrices.forEach(priceData => {
-        const holding = portfolioHoldings.find(h => h.id === priceData.id);
-        if (holding) {
+        const holdingFromBase = baseHoldings.find(h => h.id === priceData.id); // Check against baseHoldings
+        if (holdingFromBase) {
           if (priceData.currentPrice !== undefined && priceData.currency) {
             if (priceData.currency.toUpperCase() !== 'EUR') {
-              nonEurCurrencyWarnings.push(`Holding ${holding.name} (${priceData.symbol || holding.isin} on ${priceData.exchange || 'N/A'}) price is in ${priceData.currency}, not EUR. Price not updated.`);
-               // Store exchange even if non-EUR for display
-              newPricesMap.set(holding.id, { price: currentPricesMap.get(holding.id)?.price ?? holding.currentPrice, exchange: priceData.exchange });
+              nonEurCurrencyWarnings.push(`Holding ${holdingFromBase.name} (${priceData.symbol || holdingFromBase.isin} on ${priceData.exchange || 'N/A'}) price is in ${priceData.currency}, not EUR. Price not updated.`);
+              // Store exchange even if non-EUR, but DO NOT store the non-EUR price.
+              // The main useEffect will use undefined for price if not in map or not EUR.
+               newPricesMapUpdates.set(holdingFromBase.id, { 
+                price: currentPricesMap.get(holdingFromBase.id)?.price ?? undefined, // Keep existing EUR price or undefined
+                exchange: priceData.exchange 
+              });
             } else {
               pricesUpdatedCount++;
-              newPricesMap.set(holding.id, { price: priceData.currentPrice, exchange: priceData.exchange });
+              newPricesMapUpdates.set(holdingFromBase.id, { price: priceData.currentPrice, exchange: priceData.exchange });
             }
           } else {
-            notFoundWarnings.push(`Could not find EUR price for ${holding.name} (ISIN: ${holding.isin}, Ticker: ${priceData.symbol || holding.ticker || 'N/A'}, Exchange: ${priceData.exchange || 'N/A'}).`);
-            // Store exchange even if price not found
-            newPricesMap.set(holding.id, { price: currentPricesMap.get(holding.id)?.price ?? holding.currentPrice, exchange: priceData.exchange });
+            notFoundWarnings.push(`Could not find EUR price for ${holdingFromBase.name} (ISIN: ${holdingFromBase.isin}, Ticker: ${priceData.symbol || holdingFromBase.ticker || 'N/A'}, Exchange: ${priceData.exchange || 'N/A'}).`);
+            // Store exchange even if price not found, price remains undefined.
+            newPricesMapUpdates.set(holdingFromBase.id, { 
+              price: currentPricesMap.get(holdingFromBase.id)?.price ?? undefined, // Keep existing EUR price or undefined
+              exchange: priceData.exchange 
+            });
           }
         }
       });
       
-      setCurrentPricesMap(prevMap => new Map([...Array.from(prevMap.entries()), ...Array.from(newPricesMap.entries())]));
+      // Update currentPricesMap by merging:
+      // Start with a map that ensures all base holdings have an entry (value can be old price or undefined)
+      // Then overlay with new valid updates.
+      setCurrentPricesMap(prevMap => {
+        const combinedMap = new Map(prevMap); // Start with previous prices
+        baseHoldings.forEach(bh => { // Ensure all base holdings are considered
+            if (!combinedMap.has(bh.id)) { // If a base holding is not in prevMap (e.g. first load)
+                combinedMap.set(bh.id, { price: undefined, exchange: undefined });
+            }
+        });
+        newPricesMapUpdates.forEach((value, key) => { // Overlay with new updates
+            combinedMap.set(key, value);
+        });
+        return combinedMap;
+      });
+
 
       if (pricesUpdatedCount > 0) {
         setPricesLastUpdated(new Date());
@@ -146,7 +175,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         toast({ title: "Prices Refreshed", description: `${pricesUpdatedCount} holding(s) updated.` });
       } else if (initialRefreshDoneRef.current || assetsToFetch.length > 0) {
         console.log("[InvestoTrackApp] Toasting: Prices Checked (no EUR updates)");
-        toast({ title: "Prices Checked", description: "No EUR prices were updated. They might be current or not found by Yahoo Finance." });
+        // Only show this if not already showing more specific warnings
+        if (nonEurCurrencyWarnings.length === 0 && notFoundWarnings.length === 0) {
+          toast({ title: "Prices Checked", description: "No new EUR prices were found. They might be current or not found by Yahoo Finance." });
+        }
       }
 
       if (nonEurCurrencyWarnings.length > 0) {
@@ -183,16 +215,18 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       console.log("[InvestoTrackApp] Finished price refresh attempt.");
       setIsRefreshingPrices(false);
     }
-  }, [portfolioHoldings, toast, isRefreshingPrices, currentPricesMap, processAndSetHoldings]);
+  }, [isRefreshingPrices, baseHoldings, toast, currentPricesMap]); // Depends on baseHoldings now
 
 
+  // Effect 3: Initial automatic price refresh
   useEffect(() => {
-    if (portfolioHoldings.length > 0 && !initialRefreshDoneRef.current && !isRefreshingPrices) {
-      console.log("[InvestoTrackApp] Triggering initial automatic price refresh.");
+    // Use baseHoldings.length to gate initial refresh
+    if (baseHoldings.length > 0 && !initialRefreshDoneRef.current && !isRefreshingPrices) {
+      console.log("[InvestoTrackApp] Triggering initial automatic price refresh based on baseHoldings.");
       handleRefreshPrices();
       initialRefreshDoneRef.current = true;
     }
-  }, [portfolioHoldings, handleRefreshPrices, isRefreshingPrices]);
+  }, [baseHoldings, handleRefreshPrices, isRefreshingPrices]);
 
 
   return (
@@ -221,8 +255,8 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
         <HoldingsTable holdings={portfolioHoldings} />
 
-        <RebalanceAdvisor 
-          holdings={portfolioHoldings} 
+        <RebalanceAdvisor
+          holdings={portfolioHoldings}
           newInvestmentAmount={newInvestmentAmount}
           setNewInvestmentAmount={setNewInvestmentAmount}
           roundingOption={roundingOption}
