@@ -38,7 +38,8 @@ export type FetchStockPricesOutput = z.infer<typeof FetchStockPricesOutputSchema
 
 async function getPriceForIsin(isin: string, id: string, preferredTicker?: string): Promise<StockPriceData> {
   console.log(`\n[getPriceForIsin SIMPLIFIED] Processing ISIN: ${isin}, ID: ${id}, Ticker: ${preferredTicker}`);
-  const fieldsToFetch = ['price']; // Minimal fields
+  // Use specific field names known to yahoo-finance2
+  const fieldsToFetch: ("symbol" | "currency" | "exchange" | "regularMarketPrice")[] = ['regularMarketPrice', 'currency', 'symbol', 'exchange'];
 
   // Attempt 1: Preferred Ticker
   if (preferredTicker) {
@@ -89,7 +90,9 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
     console.log(`[getPriceForIsin SIMPLIFIED] Attempt 3: Searching by ISIN ${isin}`);
     const searchResults = await yahooFinance.search(isin);
     if (searchResults.quotes && searchResults.quotes.length > 0) {
+      // Use optional chaining for safety as search results can have varied structures
       const eurQuoteFromSearch = searchResults.quotes.find(q => q.isin === isin && q.currency?.toUpperCase() === 'EUR' && q.symbol);
+      
       if (eurQuoteFromSearch?.symbol) {
         console.log(`[getPriceForIsin SIMPLIFIED] Attempt 3: Found potential EUR match in search: ${eurQuoteFromSearch.symbol}. Fetching its quote.`);
         const quote = await yahooFinance.quote(eurQuoteFromSearch.symbol, { fields: fieldsToFetch });
@@ -101,19 +104,19 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
             isin,
             currentPrice: quote.regularMarketPrice,
             currency: quote.currency,
-            symbol: quote.symbol,
+            symbol: quote.symbol || eurQuoteFromSearch.symbol, // Prioritize quote.symbol
             exchange: quote.exchange,
            };
         }
         console.log(`[getPriceForIsin SIMPLIFIED] Attempt 3: Searched ${eurQuoteFromSearch.symbol} - Not EUR or incomplete after fetching.`);
       } else {
-        console.log(`[getPriceForIsin SIMPLIFIED] Attempt 3: No direct EUR match with symbol in search results for ISIN ${isin}.`);
+        console.log(`[getPriceForIsin SIMPLIFIED] Attempt 3: No direct EUR match with symbol in search results for ISIN ${isin}. Possible results:`, searchResults.quotes.map(q=> ({symbol: q.symbol, isin: q.isin, currency: q.currency, name: q.shortname})));
       }
     } else {
       console.log(`[getPriceForIsin SIMPLIFIED] Attempt 3: No quotes in search results for ISIN ${isin}.`);
     }
   } catch (error) {
-      console.error(`[getPriceForIsin SIMPLIFIED] Attempt 3: Error during search for ISIN ${isin}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`[getPriceForIsin SIMPLIFIED] Attempt 3: Error during search for ISIN ${isin}: ${error instanceof Error ? error.message : String(error)}`);
   }
 
 
@@ -147,3 +150,4 @@ const fetchStockPricesFlow = ai.defineFlow(
     return results;
   }
 );
+
