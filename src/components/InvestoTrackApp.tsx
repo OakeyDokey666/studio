@@ -24,8 +24,24 @@ const isinToTickerMap: Record<string, string> = {
   "IE00B4K6B022": "50E.PA", // HSBC EURO STOXX 50 (Corrected)
   "IE00BZ4BMM98": "EUHD.PA", // Invesco EURO STOXX High Dividend Low Volatility
   "IE0002XZSHO1": "WPEA.PA", // iShares MSCI World Swap PEA
-  "IE00B5M1WJ87": "EUDV.PA" // SPDR S&P Euro Dividend Aristocrats (Corrected)
+  "IE00B5M1WJ87": "EUDV.PA" // SPDR S&P Euro Dividend Aristocrats (Corrected from .AS to .PA)
 };
+
+// Define a type for the structure stored in currentPricesMap
+type PriceMapEntry = {
+  price?: number;
+  exchange?: string;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  regularMarketVolume?: number;
+  averageDailyVolume10Day?: number;
+  marketCap?: number;
+  trailingPE?: number;
+  epsTrailingTwelveMonths?: number;
+  fiftyTwoWeekLow?: number;
+  fiftyTwoWeekHigh?: number;
+};
+
 
 export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const [portfolioHoldings, setPortfolioHoldings] = useState<PortfolioHolding[]>([]);
@@ -37,24 +53,30 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
   const [pricesLastUpdated, setPricesLastUpdated] = useState<Date | null>(null);
   const { toast } = useToast();
   const initialRefreshDoneRef = useRef(false);
-  const [currentPricesMap, setCurrentPricesMap] = useState<Map<string, {price: number, exchange?: string, regularMarketChange?: number, regularMarketChangePercent?: number}>>(new Map());
+  const [currentPricesMap, setCurrentPricesMap] = useState<Map<string, PriceMapEntry>>(new Map());
 
   // Effect 1: Set up baseHoldings from initialData, clearing dynamic price fields
   useEffect(() => {
     const initialSetup = initialData.holdings.map(h => ({
       ...h,
       ticker: h.ticker || isinToTickerMap[h.isin] || undefined,
-      currentPrice: undefined, // Explicitly undefined until fetched
-      currentAmount: undefined, // Explicitly undefined until calculated from fetched price
-      priceSourceExchange: undefined, // Explicitly undefined until fetched
+      currentPrice: undefined,
+      currentAmount: undefined,
+      priceSourceExchange: undefined,
       regularMarketChange: undefined,
       regularMarketChangePercent: undefined,
+      regularMarketVolume: undefined,
+      averageDailyVolume10Day: undefined,
+      marketCap: undefined,
+      trailingPE: undefined,
+      epsTrailingTwelveMonths: undefined,
+      fiftyTwoWeekLow: undefined,
+      fiftyTwoWeekHigh: undefined,
     }));
     setBaseHoldings(initialSetup);
-  }, [initialData.holdings]); // Only re-run if initialData.holdings changes
+  }, [initialData.holdings]);
 
   // Effect 2: Main calculation effect for portfolioHoldings
-  // Runs when baseHoldings, currentPricesMap, newInvestmentAmount, or roundingOption change
   useEffect(() => {
     if (baseHoldings.length === 0) {
       if (initialData.holdings.length === 0) {
@@ -63,7 +85,6 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       return;
     }
 
-    // Step 1: Apply live/fetched prices to the base holdings structure
     const holdingsWithLivePrices = baseHoldings.map(h => {
       const priceInfo = currentPricesMap.get(h.id);
       const livePrice = priceInfo?.price;
@@ -75,10 +96,16 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         priceSourceExchange: priceInfo?.exchange ?? h.priceSourceExchange,
         regularMarketChange: priceInfo?.regularMarketChange,
         regularMarketChangePercent: priceInfo?.regularMarketChangePercent,
+        regularMarketVolume: priceInfo?.regularMarketVolume,
+        averageDailyVolume10Day: priceInfo?.averageDailyVolume10Day,
+        marketCap: priceInfo?.marketCap,
+        trailingPE: priceInfo?.trailingPE,
+        epsTrailingTwelveMonths: priceInfo?.epsTrailingTwelveMonths,
+        fiftyTwoWeekLow: priceInfo?.fiftyTwoWeekLow,
+        fiftyTwoWeekHigh: priceInfo?.fiftyTwoWeekHigh,
       };
     });
 
-    // Step 2: Apply all other portfolio metrics (allocations, new investment calculations, etc.)
     const metricsApplied = calculatePortfolioMetrics(holdingsWithLivePrices, newInvestmentAmount, roundingOption);
     setPortfolioHoldings(metricsApplied);
 
@@ -116,38 +143,38 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       let pricesUpdatedCount = 0;
       let nonEurCurrencyWarnings: string[] = [];
       let notFoundWarnings: string[] = [];
-      const newPricesMapUpdates = new Map<string, {price: number, exchange?: string, regularMarketChange?: number, regularMarketChangePercent?: number }>();
+      const newPricesMapUpdates = new Map<string, PriceMapEntry>();
 
       fetchedPrices.forEach(priceData => {
         const holdingFromBase = baseHoldings.find(h => h.id === priceData.id);
         if (holdingFromBase) {
+          const existingEntry = currentPricesMap.get(holdingFromBase.id);
+          let entryToSet: PriceMapEntry = {
+            exchange: priceData.exchange,
+            regularMarketChange: priceData.regularMarketChange,
+            regularMarketChangePercent: priceData.regularMarketChangePercent,
+            regularMarketVolume: priceData.regularMarketVolume,
+            averageDailyVolume10Day: priceData.averageDailyVolume10Day,
+            marketCap: priceData.marketCap,
+            trailingPE: priceData.trailingPE,
+            epsTrailingTwelveMonths: priceData.epsTrailingTwelveMonths,
+            fiftyTwoWeekLow: priceData.fiftyTwoWeekLow,
+            fiftyTwoWeekHigh: priceData.fiftyTwoWeekHigh,
+          };
+
           if (priceData.currentPrice !== undefined && priceData.currency) {
             if (priceData.currency.toUpperCase() !== 'EUR') {
               nonEurCurrencyWarnings.push(`Holding ${holdingFromBase.name} (${priceData.symbol || holdingFromBase.isin} on ${priceData.exchange || 'N/A'}) price is in ${priceData.currency}, not EUR. Price not updated.`);
-               newPricesMapUpdates.set(holdingFromBase.id, { 
-                price: currentPricesMap.get(holdingFromBase.id)?.price ?? undefined, 
-                exchange: priceData.exchange,
-                regularMarketChange: currentPricesMap.get(holdingFromBase.id)?.regularMarketChange ?? priceData.regularMarketChange, // Keep old or take new if EUR
-                regularMarketChangePercent: currentPricesMap.get(holdingFromBase.id)?.regularMarketChangePercent ?? priceData.regularMarketChangePercent, // Keep old or take new if EUR
-              });
+              entryToSet.price = existingEntry?.price; // Keep old price
             } else {
               pricesUpdatedCount++;
-              newPricesMapUpdates.set(holdingFromBase.id, { 
-                price: priceData.currentPrice, 
-                exchange: priceData.exchange,
-                regularMarketChange: priceData.regularMarketChange,
-                regularMarketChangePercent: priceData.regularMarketChangePercent,
-              });
+              entryToSet.price = priceData.currentPrice; // Use new EUR price
             }
           } else {
             notFoundWarnings.push(`Could not find EUR price for ${holdingFromBase.name} (ISIN: ${holdingFromBase.isin}, Ticker: ${priceData.symbol || holdingFromBase.ticker || 'N/A'}, Exchange: ${priceData.exchange || 'N/A'}).`);
-            newPricesMapUpdates.set(holdingFromBase.id, { 
-              price: currentPricesMap.get(holdingFromBase.id)?.price ?? undefined, 
-              exchange: priceData.exchange,
-              regularMarketChange: currentPricesMap.get(holdingFromBase.id)?.regularMarketChange ?? priceData.regularMarketChange,
-              regularMarketChangePercent: currentPricesMap.get(holdingFromBase.id)?.regularMarketChangePercent ?? priceData.regularMarketChangePercent,
-            });
+            entryToSet.price = existingEntry?.price; // Keep old price if new one not found
           }
+          newPricesMapUpdates.set(holdingFromBase.id, entryToSet);
         }
       });
       
@@ -155,7 +182,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         const combinedMap = new Map(prevMap); 
         baseHoldings.forEach(bh => { 
             if (!combinedMap.has(bh.id)) { 
-                combinedMap.set(bh.id, { price: undefined, exchange: undefined, regularMarketChange: undefined, regularMarketChangePercent: undefined });
+                combinedMap.set(bh.id, { /* default empty entry */ });
             }
         });
         newPricesMapUpdates.forEach((value, key) => { 
@@ -260,3 +287,4 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     </div>
   );
 }
+

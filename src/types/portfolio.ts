@@ -3,8 +3,8 @@ export interface PortfolioHolding {
   id: string; // ISIN
   name: string;
   quantity: number;
-  currentPrice: number; // Should be initially undefined, then fetched
-  currentAmount: number; // Should be initially undefined, then calculated
+  currentPrice?: number; // Should be initially undefined, then fetched
+  currentAmount?: number; // Should be initially undefined, then calculated
   objective: string;
   type: string;
   potentialIncome: string;
@@ -22,6 +22,15 @@ export interface PortfolioHolding {
   quantityToBuyFromNewInvestment?: number; // Calculated: newInvestmentAllocation / currentPrice, then rounded
   regularMarketChange?: number; // Absolute change from previous close
   regularMarketChangePercent?: number; // Percentage change from previous close
+
+  // Additional financial details for popover
+  regularMarketVolume?: number;
+  averageDailyVolume10Day?: number;
+  marketCap?: number;
+  trailingPE?: number;
+  epsTrailingTwelveMonths?: number;
+  fiftyTwoWeekLow?: number;
+  fiftyTwoWeekHigh?: number;
 }
 
 export interface ParsedCsvData {
@@ -31,3 +40,4 @@ export interface ParsedCsvData {
 }
 
 export type RoundingOption = 'up' | 'down' | 'classic';
+

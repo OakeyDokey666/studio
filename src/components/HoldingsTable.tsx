@@ -14,7 +14,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
-import { ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, Building2, Coins, PackagePlus, ArrowUpRight, ArrowDownLeft, Minus, Activity } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { 
+  ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard, 
+  Building2, Coins, PackagePlus, ArrowUpRight, ArrowDownLeft, Minus, Activity, BarChart3, 
+  DollarSign, DivideSquare, Sigma, ChevronsUpDown 
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +30,17 @@ interface HoldingsTableProps {
 
 type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'priceSourceExchange' | 'newInvestmentAllocation' | 'quantityToBuyFromNewInvestment' | 'regularMarketChangePercent';
 type SortDirection = 'asc' | 'desc';
+
+const formatLargeNumber = (value?: number): string => {
+  if (value === undefined || value === null || isNaN(value)) return 'N/A';
+  return value.toLocaleString('en-US'); // Basic formatting with commas
+};
+
+const formatRatio = (value?: number): string => {
+  if (value === undefined || value === null || isNaN(value)) return 'N/A';
+  return value.toFixed(2);
+}
+
 
 export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,7 +69,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
           valA = Math.abs((a.allocationPercentage ?? 0) - (a.targetAllocationPercentage ?? 0));
           valB = Math.abs((b.allocationPercentage ?? 0) - (b.targetAllocationPercentage ?? 0));
         } else if (sortKey === 'regularMarketChangePercent') {
-          valA = a.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity); // Handle undefined for sorting
+          valA = a.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity);
           valB = b.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity);
         }
          else {
@@ -110,7 +126,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
       return <span className="text-muted-foreground">N/A</span>;
     }
 
-    const changeFormatted = formatCurrency(change, '').replace(/€/g, '').trim(); // Remove currency symbol for this display
+    const changeFormatted = formatCurrency(change, '').replace(/€/g, '').trim();
     const percentChangeFormatted = `${percentChange.toFixed(2)}%`;
 
     if (change > 0) {
@@ -134,6 +150,61 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
         <Minus className="mr-1 h-3.5 w-3.5" />
         {`0.00 (0.00%)`}
       </span>
+    );
+  };
+
+  const renderPriceCell = (holding: PortfolioHolding) => {
+    const priceDisplay = formatCurrency(holding.currentPrice);
+    if (holding.currentPrice === undefined) {
+      return <span className="text-muted-foreground">{priceDisplay}</span>;
+    }
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="link" className="p-0 h-auto text-right font-normal text-current hover:text-primary">
+            {priceDisplay}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <h4 className="font-medium leading-none text-foreground">{holding.name} - Details</h4>
+              <p className="text-sm text-muted-foreground">
+                Symbol: {holding.ticker || holding.isin} ({holding.priceSourceExchange || 'N/A'})
+              </p>
+            </div>
+            <div className="grid gap-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><BarChart3 className="mr-2 h-4 w-4" />Volume</span>
+                <span>{formatLargeNumber(holding.regularMarketVolume)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><Activity className="mr-2 h-4 w-4" />Avg. Volume (10D)</span>
+                <span>{formatLargeNumber(holding.averageDailyVolume10Day)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><DollarSign className="mr-2 h-4 w-4" />Market Cap</span>
+                <span>{formatCurrency(holding.marketCap, holding.marketCap ? 'EUR' : '')}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><DivideSquare className="mr-2 h-4 w-4" />P/E Ratio</span>
+                <span>{formatRatio(holding.trailingPE)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><Sigma className="mr-2 h-4 w-4" />EPS (TTM)</span>
+                <span>{formatRatio(holding.epsTrailingTwelveMonths)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center"><ChevronsUpDown className="mr-2 h-4 w-4" />52-Week Range</span>
+                <span className="text-right">
+                  {formatCurrency(holding.fiftyTwoWeekLow)} - {formatCurrency(holding.fiftyTwoWeekHigh)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
     );
   };
 
@@ -175,7 +246,7 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                 <TableRow key={holding.id} className={cn(rowClass, "transition-colors duration-150")}>
                   <TableCell className="font-medium whitespace-nowrap">{holding.name}</TableCell>
                   <TableCell className="text-right">{holding.quantity}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(holding.currentPrice)}</TableCell>
+                  <TableCell className="text-right">{renderPriceCell(holding)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{renderDayChange(holding)}</TableCell>
                   <TableCell className="text-center">{holding.priceSourceExchange || 'N/A'}</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(holding.currentAmount)}</TableCell>
@@ -216,3 +287,4 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
     </div>
   );
 }
+
