@@ -11,7 +11,7 @@ import { RebalanceAdvisor } from '@/components/RebalanceAdvisor';
 import { DebugLogViewerDialog } from '@/components/DebugLogViewerDialog';
 import { calculatePortfolioMetrics } from '@/lib/portfolioUtils';
 import { fetchStockPrices } from '@/ai/flows/fetch-stock-prices-flow';
-import { updateHoldingQuantityOnServer } from '@/app/actions';
+// Removed: import { updateHoldingQuantityOnServer } from '@/app/actions';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
@@ -239,7 +239,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     }
   }, [baseHoldings, handleRefreshPrices, isRefreshingPrices]);
 
-  const handleUpdateHoldingQuantity = useCallback(async (holdingId: string, newQuantity: number) => {
+  const handleUpdateHoldingQuantity = useCallback((holdingId: string, newQuantity: number) => {
     if (isNaN(newQuantity) || newQuantity < 0) {
       toast({
         title: "Invalid Quantity",
@@ -261,35 +261,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
         h.id === holdingId ? { ...h, quantity: newQuantity } : h
       )
     );
-    
-    const updatedHoldingName = holdingToUpdate.name;
-    // Removed the "Syncing with server..." toast as requested.
-
-    // Call Server Action
-    try {
-      const result = await updateHoldingQuantityOnServer(holdingId, newQuantity);
-      if (result.success) {
-        toast({
-          title: "Server Acknowledged Update",
-          description: `Server logged quantity change for ${updatedHoldingName}. (Note: This example doesn't permanently save data.)`,
-          variant: "default", 
-        });
-      } else {
-        toast({
-          title: "Server Update Issue",
-          description: result.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-        console.error("Error calling server action to update quantity:", error);
-        toast({
-            title: "Network Error",
-            description: "Could not sync quantity with server.",
-            variant: "destructive",
-        });
-    }
-
+    // No server call for quantity update here, purely client-side
   }, [toast, baseHoldings]);
 
 
@@ -343,4 +315,3 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     </div>
   );
 }
-
