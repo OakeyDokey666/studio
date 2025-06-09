@@ -238,6 +238,29 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     }
   }, [baseHoldings, handleRefreshPrices, isRefreshingPrices]);
 
+  const handleUpdateHoldingQuantity = useCallback((holdingId: string, newQuantity: number) => {
+    if (isNaN(newQuantity) || newQuantity < 0) {
+      toast({
+        title: "Invalid Quantity",
+        description: "Quantity must be a non-negative number.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setBaseHoldings(prevHoldings =>
+      prevHoldings.map(h =>
+        h.id === holdingId ? { ...h, quantity: newQuantity } : h
+      )
+    );
+    
+    const updatedHoldingName = baseHoldings.find(h => h.id === holdingId)?.name || holdingId;
+    toast({
+      title: "Quantity Updated",
+      description: `Quantity for ${updatedHoldingName} set to ${newQuantity}. Calculations will update.`,
+    });
+  }, [toast, baseHoldings]);
+
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -265,7 +288,10 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
 
         <SummarySection holdings={portfolioHoldings} newInvestmentAmount={newInvestmentAmount} />
 
-        <HoldingsTable holdings={portfolioHoldings} />
+        <HoldingsTable 
+          holdings={portfolioHoldings}
+          onUpdateHoldingQuantity={handleUpdateHoldingQuantity} 
+        />
 
         <RebalanceAdvisor
           holdings={portfolioHoldings}

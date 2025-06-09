@@ -22,15 +22,17 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
+import { EditableQuantityCell } from './EditableQuantityCell'; // New import
 
 interface HoldingsTableProps {
   holdings: PortfolioHolding[];
+  onUpdateHoldingQuantity: (holdingId: string, newQuantity: number) => void; // New prop
 }
 
 type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'regularMarketChangePercent';
 type SortDirection = 'asc' | 'desc';
 
-export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
+export function HoldingsTable({ holdings: data, onUpdateHoldingQuantity }: HoldingsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<SortKey | null>('name'); // Default sort by name
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -206,13 +208,18 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
 
               return (
                 <TableRow key={holding.id} className={cn(rowClass, "transition-colors duration-150")}>
-                  <TableCell className="whitespace-nowrap">{renderNameCell(holding)}</TableCell>
-                  <TableCell className="text-right">{holding.quantity}</TableCell>
-                  <TableCell className="text-right">{renderPriceCell(holding)}</TableCell>
-                  <TableCell className="text-right">{renderDayChangeCell(holding)}</TableCell>
-                  <TableCell className="text-center">{holding.priceSourceExchange || 'N/A'}</TableCell>
-                  <TableCell className="text-right font-semibold">{formatCurrency(holding.currentAmount)}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="whitespace-nowrap align-middle">{renderNameCell(holding)}</TableCell>
+                  <TableCell className="text-right p-1 align-middle">
+                    <EditableQuantityCell
+                      holding={holding}
+                      onUpdateQuantity={onUpdateHoldingQuantity}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right align-middle">{renderPriceCell(holding)}</TableCell>
+                  <TableCell className="text-right align-middle">{renderDayChangeCell(holding)}</TableCell>
+                  <TableCell className="text-center align-middle">{holding.priceSourceExchange || 'N/A'}</TableCell>
+                  <TableCell className="text-right font-semibold align-middle">{formatCurrency(holding.currentAmount)}</TableCell>
+                  <TableCell className="text-right align-middle">
                      <Badge variant={
                        deviation === 'high' ? 'destructive' : deviation === 'medium' ? 'secondary' : 'default'
                      } className={cn(
@@ -222,15 +229,15 @@ export function HoldingsTable({ holdings: data }: HoldingsTableProps) {
                       {formatPercentage(holding.allocationPercentage)}
                      </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono">{formatPercentage(holding.targetAllocationPercentage)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(holding.newInvestmentAllocation)}</TableCell>
-                  <TableCell className="text-right">{holding.quantityToBuyFromNewInvestment?.toString() ?? 'N/A'}</TableCell>
-                  <TableCell className="whitespace-nowrap">{holding.objective}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-right font-mono align-middle">{formatPercentage(holding.targetAllocationPercentage)}</TableCell>
+                  <TableCell className="text-right align-middle">{formatCurrency(holding.newInvestmentAllocation)}</TableCell>
+                  <TableCell className="text-right align-middle">{holding.quantityToBuyFromNewInvestment?.toString() ?? 'N/A'}</TableCell>
+                  <TableCell className="whitespace-nowrap align-middle">{holding.objective}</TableCell>
+                  <TableCell className="align-middle">
                     <Badge variant="outline">{holding.type}</Badge>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{holding.potentialIncome}</TableCell>
-                  <TableCell className="font-mono text-xs">{holding.isin}</TableCell>
+                  <TableCell className="whitespace-nowrap align-middle">{holding.potentialIncome}</TableCell>
+                  <TableCell className="font-mono text-xs align-middle">{holding.isin}</TableCell>
                 </TableRow>
               );
             })}
