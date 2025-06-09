@@ -11,6 +11,7 @@ import { RebalanceAdvisor } from '@/components/RebalanceAdvisor';
 import { DebugLogViewerDialog } from '@/components/DebugLogViewerDialog';
 import { calculatePortfolioMetrics } from '@/lib/portfolioUtils';
 import { fetchStockPrices } from '@/ai/flows/fetch-stock-prices-flow';
+import { updateHoldingQuantityOnServer } from '@/app/actions'; // New Import
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
@@ -238,7 +239,7 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
     }
   }, [baseHoldings, handleRefreshPrices, isRefreshingPrices]);
 
-  const handleUpdateHoldingQuantity = useCallback((holdingId: string, newQuantity: number) => {
+  const handleUpdateHoldingQuantity = useCallback(async (holdingId: string, newQuantity: number) => {
     if (isNaN(newQuantity) || newQuantity < 0) {
       toast({
         title: "Invalid Quantity",
@@ -248,17 +249,57 @@ export function InvestoTrackApp({ initialData }: InvestoTrackAppProps) {
       return;
     }
 
+    const holdingToUpdate = baseHoldings.find(h => h.id === holdingId);
+    if (!holdingToUpdate) {
+        toast({ title: "Error", description: "Holding not found for update.", variant: "destructive" });
+        return;
+    }
+
+    // Optimistic UI update
     setBaseHoldings(prevHoldings =>
       prevHoldings.map(h =>
         h.id === holdingId ? { ...h, quantity: newQuantity } : h
       )
     );
     
-    const updatedHoldingName = baseHoldings.find(h => h.id === holdingId)?.name || holdingId;
+    const updatedHoldingName = holdingToUpdate.name;
     toast({
-      title: "Quantity Updated",
-      description: `Quantity for ${updatedHoldingName} set to ${newQuantity}. Calculations will update.`,
+      title: "Quantity Updated (Locally)",
+      description: `Quantity for ${updatedHoldingName} set to ${newQuantity}. Syncing with server...`,
     });
+
+    // Call Server Action
+    try {
+      const result = await updateHoldingQuantityOnServer(holdingId, newQuantity);
+      if (result.success) {
+        toast({
+          title: "Server Acknowledged Update",
+          description: `Server logged quantity change for ${updatedHoldingName}. (Note: This example doesn't permanently save data.)`,
+          variant: "default", // Success variant could be green if defined in theme
+        });
+      } else {
+        toast({
+          title: "Server Update Issue",
+          description: result.message,
+          variant: "destructive",
+        });
+        // Optionally revert optimistic update if server call fails critically
+        // setBaseHoldings(prevHoldings =>
+        //   prevHoldings.map(h =>
+        //     h.id === holdingId ? { ...h, quantity: holdingToUpdate.quantity } : h // Revert to original
+        //   )
+        // );
+      }
+    } catch (error) {
+        console.error("Error calling server action to update quantity:", error);
+        toast({
+            title: "Network Error",
+            description: "Could not sync quantity with server.",
+            variant: "destructive",
+        });
+        // Optionally revert optimistic update here too
+    }
+
   }, [toast, baseHoldings]);
 
 
