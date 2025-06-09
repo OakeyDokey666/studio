@@ -2,15 +2,14 @@
 'use server';
 /**
  * @fileOverview Fetches latest stock prices and related financial data using Yahoo Finance.
- * This version focuses on reliability and re-introducing Name Popover details.
+ * This version focuses on reliability and re-introducing Name Popover details, without Genkit.
  *
  * - fetchStockPrices - A function that takes ISINs (and optional tickers) and returns current prices and other details.
  * - FetchStockPricesInput - The input type for the fetchStockPrices function.
  * - FetchStockPricesOutput - The return type for the fetchStockPrices function.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import yahooFinance from 'yahoo-finance2';
 // Using .js extension as it's often required for ESM modules by Node/TS, and ensuring correct type import
 import type { Quote, QuoteNodeQueryOptions } from 'yahoo-finance2/dist/esm/src/modules/quote.js';
@@ -238,22 +237,19 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
   return resultData as StockPriceData;
 }
 
-export async function fetchStockPrices(input: FetchStockPricesInput): Promise<FetchStockPricesOutput> {
-  return fetchStockPricesFlow(input);
-}
-
-const fetchStockPricesFlow = ai.defineFlow(
-  {
-    name: 'fetchStockPricesFlow',
-    inputSchema: FetchStockPricesInputSchema,
-    outputSchema: FetchStockPricesOutputSchema,
-  },
-  async (assets) => {
-    console.log("[fetchStockPricesFlow RB] Starting flow for assets:", assets.map(a => a.isin));
-    const pricePromises = assets.map(asset => getPriceForIsin(asset.isin, asset.id, asset.ticker));
+export async function fetchStockPrices(assets: FetchStockPricesInput): Promise<FetchStockPricesOutput> {
+  // This is now a direct server function, not a Genkit flow.
+  console.log("[fetchStockPrices] Starting direct function call for assets:", assets.map(a => a.isin));
+  const pricePromises = assets.map(asset => getPriceForIsin(asset.isin, asset.id, asset.ticker));
+  
+  try {
     const results = await Promise.all(pricePromises);
-    console.log("[fetchStockPricesFlow RB] Results from getPriceForIsin (summary):", results.map(r => ({isin: r.isin, price: r.currentPrice, currency: r.currency, ter: r.ter, fundSize: r.fundSize, category: r.categoryName, changePercent: r.regularMarketChangePercent, logsCount: r.debugLogs?.length || 0 })));
+    console.log("[fetchStockPrices] Results from getPriceForIsin (summary):", results.map(r => ({isin: r.isin, price: r.currentPrice, currency: r.currency, ter: r.ter, fundSize: r.fundSize, category: r.categoryName, changePercent: r.regularMarketChangePercent, logsCount: r.debugLogs?.length || 0 })));
     return results.filter(r => r !== null) as FetchStockPricesOutput;
+  } catch (error) {
+    console.error("[fetchStockPrices] Error processing price promises:", error);
+    // Depending on how you want to handle partial failures, you might return partial results or throw.
+    // For now, rethrow or return an empty array to signify failure.
+    throw error; // Or return [];
   }
-);
-
+}
