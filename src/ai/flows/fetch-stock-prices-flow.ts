@@ -39,6 +39,9 @@ const StockPriceDataSchema = z.object({
   regularMarketChange: z.number().optional().describe('The change in market price since the previous close.'),
   regularMarketChangePercent: z.number().optional().describe('The percentage change in market price since the previous close.'),
   regularMarketPreviousClose: z.number().optional().describe('The previous closing price of the asset.'),
+  // For Price Popover
+  trailingPE: z.number().optional().describe('Trailing Price to Earnings ratio.'),
+  forwardPE: z.number().optional().describe('Forward Price to Earnings ratio.'),
   debugLogs: z.array(z.string()).optional().describe('Debug logs for price fetching process.'),
 });
 export type StockPriceData = z.infer<typeof StockPriceDataSchema>;
@@ -48,7 +51,7 @@ export type FetchStockPricesOutput = z.infer<typeof FetchStockPricesOutputSchema
 
 
 const queryOptions: QuoteNodeQueryOptions = {
-  modules: ['price', 'fundProfile', 'summaryDetail'],
+  modules: ['price', 'fundProfile', 'summaryDetail'], // summaryDetail includes P/E ratios
 };
 
 
@@ -61,9 +64,7 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
 
   debugLogs.push(`  Raw quote.fundProfile exists: ${quote.fundProfile ? 'Yes' : 'No'}`);
   if (quote.fundProfile) {
-    debugLogs.push(`    fundProfile.annualReportExpenseRatio (raw object): ${JSON.stringify(quote.fundProfile.annualReportExpenseRatio)}`);
     debugLogs.push(`    fundProfile.annualReportExpenseRatio?.raw: ${quote.fundProfile.annualReportExpenseRatio?.raw}`);
-    debugLogs.push(`    fundProfile.totalAssets (raw object): ${JSON.stringify(quote.fundProfile.totalAssets)}`);
     debugLogs.push(`    fundProfile.totalAssets?.raw: ${quote.fundProfile.totalAssets?.raw}`);
     debugLogs.push(`    fundProfile.categoryName: ${quote.fundProfile.categoryName}`);
   } else {
@@ -72,12 +73,12 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
 
   debugLogs.push(`  Raw quote.summaryDetail exists: ${quote.summaryDetail ? 'Yes' : 'No'}`);
   if (quote.summaryDetail) {
-    debugLogs.push(`    summaryDetail.expenseRatio (raw object): ${JSON.stringify(quote.summaryDetail.expenseRatio)}`);
     debugLogs.push(`    summaryDetail.expenseRatio?.raw: ${quote.summaryDetail.expenseRatio?.raw}`);
-    debugLogs.push(`    summaryDetail.totalAssets (raw object): ${JSON.stringify(quote.summaryDetail.totalAssets)}`);
     debugLogs.push(`    summaryDetail.totalAssets?.raw: ${quote.summaryDetail.totalAssets?.raw}`);
+    debugLogs.push(`    summaryDetail.trailingPE: ${quote.summaryDetail.trailingPE}`);
+    debugLogs.push(`    summaryDetail.forwardPE: ${quote.summaryDetail.forwardPE}`);
   } else {
-    debugLogs.push(`    summaryDetail details not available.`);
+    debugLogs.push(`    summaryDetail details not available (including P/E).`);
   }
   
   debugLogs.push(`  Raw quote.regularMarketChange: ${quote.regularMarketChange}`);
@@ -94,11 +95,13 @@ function extractDataFromQuote(quote: Quote | undefined, isin: string, id: string
     ter: quote.fundProfile?.annualReportExpenseRatio?.raw ?? quote.summaryDetail?.expenseRatio?.raw,
     fundSize: quote.fundProfile?.totalAssets?.raw ?? quote.summaryDetail?.totalAssets?.raw,
     categoryName: quote.fundProfile?.categoryName,
+    trailingPE: quote.summaryDetail?.trailingPE,
+    forwardPE: quote.summaryDetail?.forwardPE,
     regularMarketChange: quote.regularMarketChange,
     regularMarketChangePercent: quote.regularMarketChangePercent,
     regularMarketPreviousClose: quote.regularMarketPreviousClose,
   };
-  debugLogs.push(`extractDataFromQuote: Extracted Price: ${data.currentPrice}, Currency: ${data.currency}, Symbol: ${data.symbol}, Exchange: ${data.exchange}. TER: ${data.ter}, FundSize: ${data.fundSize}, Category: ${data.categoryName}, Change: ${data.regularMarketChange}, Change %: ${data.regularMarketChangePercent}`);
+  debugLogs.push(`extractDataFromQuote: Extracted Price: ${data.currentPrice}, Currency: ${data.currency}, Symbol: ${data.symbol}, Exchange: ${data.exchange}. TER: ${data.ter}, FundSize: ${data.fundSize}, Category: ${data.categoryName}, Trailing P/E: ${data.trailingPE}, Forward P/E: ${data.forwardPE}, Change: ${data.regularMarketChange}, Change %: ${data.regularMarketChangePercent}`);
   return data;
 }
 
@@ -227,6 +230,8 @@ async function getPriceForIsin(isin: string, id: string, preferredTicker?: strin
         ter: undefined,
         fundSize: undefined,
         categoryName: undefined,
+        trailingPE: undefined,
+        forwardPE: undefined,
         regularMarketChange: undefined,
         regularMarketChangePercent: undefined,
         regularMarketPreviousClose: undefined,
@@ -244,7 +249,7 @@ export async function fetchStockPrices(assets: FetchStockPricesInput): Promise<F
   
   try {
     const results = await Promise.all(pricePromises);
-    console.log("[fetchStockPrices] Results from getPriceForIsin (summary):", results.map(r => ({isin: r.isin, price: r.currentPrice, currency: r.currency, ter: r.ter, fundSize: r.fundSize, category: r.categoryName, changePercent: r.regularMarketChangePercent, logsCount: r.debugLogs?.length || 0 })));
+    console.log("[fetchStockPrices] Results from getPriceForIsin (summary):", results.map(r => ({isin: r.isin, price: r.currentPrice, currency: r.currency, ter: r.ter, fundSize: r.fundSize, category: r.categoryName, trailingPE: r.trailingPE, forwardPE: r.forwardPE, changePercent: r.regularMarketChangePercent, logsCount: r.debugLogs?.length || 0 })));
     return results.filter(r => r !== null) as FetchStockPricesOutput;
   } catch (error) {
     console.error("[fetchStockPrices] Error processing price promises:", error);

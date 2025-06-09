@@ -17,16 +17,16 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, formatPercentage } from '@/lib/portfolioUtils';
 import {
   ArrowUpDown, Landmark, Target, PieChart, Info, Percent, Hash, ListTree, Edit3, CreditCard,
-  Building2, Coins, PackagePlus, Bookmark, Briefcase, TrendingUp, TrendingDown
+  Building2, Coins, PackagePlus, Bookmark, Briefcase, TrendingUp, TrendingDown, BarChart3
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
-import { EditableQuantityCell } from './EditableQuantityCell'; // New import
+import { EditableQuantityCell } from './EditableQuantityCell';
 
 interface HoldingsTableProps {
   holdings: PortfolioHolding[];
-  onUpdateHoldingQuantity: (holdingId: string, newQuantity: number) => void; // New prop
+  onUpdateHoldingQuantity: (holdingId: string, newQuantity: number) => void;
 }
 
 type SortKey = keyof PortfolioHolding | 'allocationDifference' | 'regularMarketChangePercent';
@@ -34,7 +34,7 @@ type SortDirection = 'asc' | 'desc';
 
 export function HoldingsTable({ holdings: data, onUpdateHoldingQuantity }: HoldingsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey | null>('name'); // Default sort by name
+  const [sortKey, setSortKey] = useState<SortKey | null>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const handleSort = (key: SortKey) => {
@@ -59,7 +59,7 @@ export function HoldingsTable({ holdings: data, onUpdateHoldingQuantity }: Holdi
           valA = Math.abs((a.allocationPercentage ?? 0) - (a.targetAllocationPercentage ?? 0));
           valB = Math.abs((b.allocationPercentage ?? 0) - (b.targetAllocationPercentage ?? 0));
         } else if (sortKey === 'regularMarketChangePercent') {
-          valA = a.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity); // Handle undefined for sorting
+          valA = a.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity);
           valB = b.regularMarketChangePercent ?? (sortDirection === 'asc' ? Infinity : -Infinity);
         }
         else {
@@ -96,7 +96,6 @@ export function HoldingsTable({ holdings: data, onUpdateHoldingQuantity }: Holdi
     { key: 'quantity', label: 'Qty', icon: <Hash className="mr-1 h-4 w-4" /> },
     { key: 'currentPrice', label: 'Price (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'regularMarketChangePercent', label: 'Day Change %', icon: <TrendingUp className="mr-1 h-4 w-4" /> },
-    { key: 'priceSourceExchange', label: 'Exchange', icon: <Building2 className="mr-1 h-4 w-4" /> },
     { key: 'currentAmount', label: 'Value (€)', icon: <CreditCard className="mr-1 h-4 w-4" /> },
     { key: 'allocationPercentage', label: 'Current Alloc.', icon: <PieChart className="mr-1 h-4 w-4" /> },
     { key: 'targetAllocationPercentage', label: 'Target Alloc.', icon: <Target className="mr-1 h-4 w-4" /> },
@@ -108,11 +107,38 @@ export function HoldingsTable({ holdings: data, onUpdateHoldingQuantity }: Holdi
     { key: 'isin', label: 'ISIN', icon: <Info className="mr-1 h-4 w-4" /> },
   ];
 
-  const renderPriceCell = (holding: PortfolioHolding) => {
+  const renderPriceCellWithDetails = (holding: PortfolioHolding) => {
     const priceDisplay = formatCurrency(holding.currentPrice);
-    return holding.currentPrice === undefined
-      ? <span className="text-muted-foreground">{priceDisplay}</span>
-      : <span className="text-right">{priceDisplay}</span>;
+    const priceDetailsContent = (
+      <div className="space-y-2 p-4 text-sm min-w-[250px]">
+        <h4 className="font-medium leading-none mb-2 text-foreground">{holding.name} - Price Details</h4>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+          <div className="flex items-center text-muted-foreground"><Building2 className="mr-2 h-4 w-4" /> Exchange:</div>
+          <div className="text-right font-mono">{holding.priceSourceExchange || 'N/A'}</div>
+
+          <div className="flex items-center text-muted-foreground"><BarChart3 className="mr-2 h-4 w-4" /> Trailing P/E:</div>
+          <div className="text-right font-mono">{holding.trailingPE ? holding.trailingPE.toFixed(2) : 'N/A'}</div>
+
+          <div className="flex items-center text-muted-foreground"><BarChart3 className="mr-2 h-4 w-4" /> Forward P/E:</div>
+          <div className="text-right font-mono">{holding.forwardPE ? holding.forwardPE.toFixed(2) : 'N/A'}</div>
+        </div>
+      </div>
+    );
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="link" className="font-medium text-right whitespace-nowrap p-0 h-auto hover:bg-accent/20 data-[state=open]:bg-accent/50" disabled={holding.currentPrice === undefined}>
+            {holding.currentPrice === undefined ? <span className="text-muted-foreground">{priceDisplay}</span> : <span>{priceDisplay}</span>}
+          </Button>
+        </PopoverTrigger>
+        {holding.currentPrice !== undefined && (
+          <PopoverContent className="w-auto max-w-md shadow-xl" side="top" align="start">
+            {priceDetailsContent}
+          </PopoverContent>
+        )}
+      </Popover>
+    );
   };
 
   const renderDayChangeCell = (holding: PortfolioHolding) => {
@@ -128,7 +154,6 @@ export function HoldingsTable({ holdings: data, onUpdateHoldingQuantity }: Holdi
     const colorClass = cn({
       'text-emerald-600 dark:text-emerald-500': isPositive,
       'text-destructive': isNegative,
-      // Default text color if not positive or negative (e.g. zero change)
     });
 
     const Icon = isPositive ? TrendingUp : isNegative ? TrendingDown : null;
@@ -215,9 +240,8 @@ export function HoldingsTable({ holdings: data, onUpdateHoldingQuantity }: Holdi
                       onUpdateQuantity={onUpdateHoldingQuantity}
                     />
                   </TableCell>
-                  <TableCell className="text-right align-middle">{renderPriceCell(holding)}</TableCell>
+                  <TableCell className="text-right align-middle">{renderPriceCellWithDetails(holding)}</TableCell>
                   <TableCell className="text-right align-middle">{renderDayChangeCell(holding)}</TableCell>
-                  <TableCell className="text-center align-middle">{holding.priceSourceExchange || 'N/A'}</TableCell>
                   <TableCell className="text-right font-semibold align-middle">{formatCurrency(holding.currentAmount)}</TableCell>
                   <TableCell className="text-right align-middle">
                      <Badge variant={
@@ -256,4 +280,3 @@ export function HoldingsTable({ holdings: data, onUpdateHoldingQuantity }: Holdi
     </div>
   );
 }
-

@@ -29,6 +29,10 @@ export interface PortfolioHolding {
   regularMarketChangePercent?: number;
   regularMarketPreviousClose?: number;
 
+  // Fields for price popover
+  trailingPE?: number;
+  forwardPE?: number;
+
   // Fields for new investment calculation (dependent on currentPrice)
   newInvestmentAllocation?: number;
   quantityToBuyFromNewInvestment?: number;
