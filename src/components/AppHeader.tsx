@@ -42,7 +42,7 @@ export function AppHeader({
               className="shadow-sm"
             >
               <FileText className="mr-2 h-4 w-4" />
-              View Logs
+              View Log
             </Button>
           )}
           {onRefreshPrices && (
