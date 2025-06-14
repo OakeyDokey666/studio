@@ -39,7 +39,7 @@ export function SummarySection({ holdings, newInvestmentAmount }: SummarySection
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-3">
         <div className="flex flex-col p-4 bg-secondary/50 rounded-lg shadow">
-          <span className="text-sm text-muted-foreground font-medium">Total Current Value</span>
+          <span className="text-sm text-muted-foreground font-medium">Total portfolio value</span>
           <span className="text-2xl font-semibold text-primary">
             {formatCurrency(totalPortfolioValue)}
           </span>
